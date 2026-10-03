@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.env
+.streamlit/secrets.toml
+data/documents/
+data/experiments_history/
+data/load_test_history/
+data/collections/
+data/models/
+data/uploads/
+data/jobs/
+data/logs/
+*.egg-info/
+.config.lock
+
+# Local provider credentials and atomic temporary files
+.secrets/

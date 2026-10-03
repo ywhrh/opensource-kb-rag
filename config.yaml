@@ -1,0 +1,99 @@
+experiment:
+  name: ''
+  description: ''
+ingestion_pipeline:
+  cleaning:
+    remove_html_tags: true
+    min_chunk_length: 50
+    max_chunk_length: 1000
+    language_filter:
+    - en
+    deduplication_enabled: true
+  chunking:
+    strategy: semantic
+    fixed_size_config:
+      chunk_size: 500
+      chunk_overlap: 50
+    semantic_config:
+      breakpoint_threshold_type: percentile
+      breakpoint_threshold_amount: 90.0
+      buffer_size: 1
+  metadata_enrichment:
+    inject_doc_title: true
+    extract_entities: true
+    entity_types:
+    - API
+    - VERSION
+    - CODE
+    generate_hypothetical_questions: false
+retrieval_pipeline:
+  mode: hybrid_rerank
+vector_search:
+  enabled: true
+  model_name: BAAI/bge-m3
+  top_k: 50
+  index_type: HNSW
+  metric_type: COSINE
+  hnsw_params:
+    efConstruction: 200
+    ef: 64
+    M: 16
+  ivf_params:
+    nlist: 128
+    nprobe: 16
+  quantization:
+    type: SQ8
+    enabled: false
+bm25_search:
+  enabled: true
+  model_name: BM25Okapi
+  top_k: 49
+  tokenizer: standard
+hybrid_fusion:
+  strategy: weighted_sum
+  weights:
+    vector_weight: 0.7
+    bm25_weight: 0.3
+  rrf_k: 60
+rerank:
+  enabled: true
+  model_name: bge-reranker-base
+  top_n: 20
+  optimization:
+    use_onnx_acceleration: true
+    batch_size: 16
+security_and_permission:
+  enabled: false
+  filter_strategy: milvus_expr_pre_filter
+  test_scenario: cross_department_access
+generation:
+  llm_model: llama3.1:8b
+  provider: ollama
+  temperature: 0.0
+  max_tokens: 512
+  context_top_k: 5
+  max_context_chars: 16000
+  seed: 42
+evaluation:
+  dataset_path: ./data/golden_test_dataset.json
+  judge_model: llama3.1:8b
+  judge_max_tokens: 4096
+  metrics:
+  - context_recall
+  - context_precision
+  - faithfulness
+  - answer_correctness
+  sla_targets:
+    max_p99_latency_ms: 30.0
+    min_context_recall: 0.9
+load_testing:
+  tool: locust
+  target_host: http://localhost:8000
+  endpoint: /retrieve
+  parameters:
+    users: 50
+    spawn_rate: 5.0
+    run_time: 5m
+  sla_targets:
+    target_min_qps: 50.0
+    max_p99_latency_ms: 30.0
