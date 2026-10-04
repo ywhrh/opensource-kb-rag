@@ -84,7 +84,7 @@ Targets are limited to the local API. BM25Okapi loads the corpus into memory and
 
 The local services and real UI/API wiring are implemented. End-to-end retrieval, golden-set evaluation and load measurements await your documents and references. No automated tests were requested or run.
 
-The Only existing tests button after Reset toggles history-constrained selection. Toggling restarts the selection flow; Reset preserves the mode. All parameter controls offer saved values that can complete a matching input/output pair for the fixed dataset and index, with shared settings compatible across both comparison paths. This mode never offers a Run trigger for missing results; normal mode retains free configuration.
+History-constrained selection is the default. The top workspace selector contains Live Run, Tuning & Ablation, and Create new test. Tuning always restricts selection to saved experiments; Create new test provides free configuration and explicit execution. Each configuration page retains its own selections when switching. There is no mode-switch button below the selector. All parameter controls offer saved values that can complete a matching input/output pair for the fixed dataset and index, with shared settings compatible across both comparison paths. This mode never offers a Run trigger for missing results; normal mode retains free configuration.
 
 History YAML parsing uses the safe C loader when available and a bounded cache keyed by file modification time, change time, inode and size. Switching pages and adjusting cards reuse unchanged parsed pairs; new files and atomic evaluation checkpoints are discovered through fresh file metadata checks.
 

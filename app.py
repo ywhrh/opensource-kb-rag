@@ -172,7 +172,7 @@ def render_result(run, prefix):
         headings = [key.replace('_', ' ').title() for key in keys]
         scores = [f'{metrics[key]:.3f}' if metrics.get(key) is not None else '—' for key in keys]
         st.markdown('| ' + ' | '.join(headings) + ' |\n| ' + ' | '.join(['---'] * len(keys)) + ' |\n| ' + ' | '.join(scores) + ' |')
-        with st.expander('评分完整性'):
+        with st.expander('Score completeness'):
             total = len(results.get('per_case', []))
             counts = results.get('metric_valid_case_counts') or {}
             for key, heading in zip(keys, headings):
@@ -206,7 +206,7 @@ def render_result(run, prefix):
         with st.expander(f"Evidence {i} · {chunk.get('section_title', 'Source')}"):
             st.caption(chunk.get('metadata', {}).get('source', ''))
             st.write(chunk['text'])
-    with st.expander('📂 展开查看/折叠历史实验配置'):
+    with st.expander('📂 Historical experiment configuration'):
         st.json({k: v for k, v in run.items() if k != 'results'}, expanded=False)
         st.json(results, expanded=False)
         st.download_button('Download output JSON', json.dumps(run, ensure_ascii=False, indent=2), run['run_id'] + '.json', 'application/json', key=prefix + '_download')
@@ -386,33 +386,43 @@ def pending_tuning_history():
         with value:
             st.selectbox('Retrieval model', list(MODES), index=None, disabled=True,
                          label_visibility='collapsed', placeholder='Loading…', key='loading_retrieval')
-        st.caption('正在后台加载历史实验…')
+        st.caption('Loading saved experiments…')
 
 
+
+if not st.session_state.get('existing_tests_default_v2'):
+    st.session_state.only_existing_tests = True
+    st.session_state.existing_tests_default_v2 = True
+    reset_tuning_workspace()
 
 st.markdown('<div class="eyebrow">OPEN-SOURCE DOCUMENTATION · EXPERIMENT WORKSPACE</div>', unsafe_allow_html=True)
 st.title('OpenKB-RAG Studio')
-page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation'], horizontal=True, key='workspace_page', label_visibility='collapsed')
-if st.session_state.get('previous_workspace') != page:
+page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation', 'Create new test'], horizontal=True, key='workspace_page', label_visibility='collapsed')
+previous_page = st.session_state.get('previous_workspace')
+if previous_page != page:
+    workspaces = st.session_state.setdefault('configuration_workspaces', {})
+    if previous_page in {'Tuning & Ablation', 'Create new test'}:
+        workspaces[previous_page] = {key: deepcopy(st.session_state[key]) for key in st.session_state
+            if key.startswith('group_') or key in {'grouped_paths', 'grouped_counter', 'grouped_checkout_used'}}
+    reset_tuning_workspace()
+    for key, value in workspaces.get(page, {}).items():
+        st.session_state[key] = deepcopy(value)
     refresh_tuning_history()
+st.session_state.only_existing_tests = page == 'Tuning & Ablation'
 st.session_state.previous_workspace = page
 if page == 'Live Run':
     live_workspace()
     st.stop()
-refresh_column, reset_column, existing_column, _ = st.columns([.17, .09, .19, .55], gap='small')
-with refresh_column:
-    st.button('Refresh saved results', on_click=refresh_tuning_history, width='stretch')
-with reset_column:
-    st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
-
-def toggle_existing_tests():
-    st.session_state.only_existing_tests = not st.session_state.get('only_existing_tests', False)
-    reset_tuning_workspace()
-
-with existing_column:
-    st.button('Only existing tests' + (' ✓' if st.session_state.get('only_existing_tests') else ''),
-              type='primary' if st.session_state.get('only_existing_tests') else 'secondary',
-              on_click=toggle_existing_tests, width='stretch')
+if page == 'Tuning & Ablation':
+    reset_column, _ = st.columns([.09, .91], gap='small')
+    with reset_column:
+        st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
+else:
+    refresh_column, reset_column, _ = st.columns([.17, .09, .74], gap='small')
+    with refresh_column:
+        st.button('Refresh saved results', on_click=refresh_tuning_history, width='stretch')
+    with reset_column:
+        st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
 
 # Render the first card while file parsing runs outside the UI thread.
 if st.session_state.get('tuning_history_error'):
