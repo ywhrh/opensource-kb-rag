@@ -1,5 +1,6 @@
 """OpenKB-RAG Studio: cascading columns with disk-backed experiment leaves."""
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 
@@ -346,16 +347,61 @@ def reset_tuning_workspace():
             del st.session_state[key]
 
 
+@st.cache_resource
+def history_loader():
+    return ThreadPoolExecutor(max_workers=1, thread_name_prefix='history-reader')
+
+
+def load_tuning_history():
+    # Worker code reads disk only; Streamlit state stays on the UI thread.
+    pairs, _ = saved_pairs('evaluation')
+    return [saved for saved, _, _ in pairs if saved['source_id'] == 'project'
+            and len(saved.get('dataset', {}).get('snapshot', [])) == 60]
+
+
+def refresh_tuning_history():
+    future = st.session_state.pop('tuning_history_future', None)
+    if future is not None:
+        future.cancel()
+    st.session_state.pop('tuning_history', None)
+    st.session_state.pop('tuning_history_error', None)
+
+
+@st.fragment(run_every='250ms')
+def pending_tuning_history():
+    future = st.session_state.tuning_history_future
+    if future.done():
+        try:
+            st.session_state.tuning_history = future.result()
+        except Exception as exc:
+            st.session_state.tuning_history_error = str(exc)
+        st.session_state.pop('tuning_history_future', None)
+        st.rerun()
+    first, *_ = st.columns(5, gap='small')
+    with first, st.container(border=True):
+        st.markdown('**01 · Retrieval**')
+        label, value = st.columns([.85, 1.3], gap='small', vertical_alignment='center')
+        with label:
+            st.caption('Retrieval model')
+        with value:
+            st.selectbox('Retrieval model', list(MODES), index=None, disabled=True,
+                         label_visibility='collapsed', placeholder='Loading…', key='loading_retrieval')
+        st.caption('正在后台加载历史实验…')
+
+
+
 st.markdown('<div class="eyebrow">OPEN-SOURCE DOCUMENTATION · EXPERIMENT WORKSPACE</div>', unsafe_allow_html=True)
 st.title('OpenKB-RAG Studio')
 page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation'], horizontal=True, key='workspace_page', label_visibility='collapsed')
+if st.session_state.get('previous_workspace') != page:
+    refresh_tuning_history()
+st.session_state.previous_workspace = page
 if page == 'Live Run':
     live_workspace()
     st.stop()
 refresh_column, reset_column, existing_column, _ = st.columns([.17, .09, .19, .55], gap='small')
 with refresh_column:
-    if st.button('Refresh saved results', width='stretch'):
-        st.rerun()
+    st.button('Refresh saved results', on_click=refresh_tuning_history, width='stretch')
 with reset_column:
     st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
 
@@ -368,10 +414,16 @@ with existing_column:
               type='primary' if st.session_state.get('only_existing_tests') else 'secondary',
               on_click=toggle_existing_tests, width='stretch')
 
-# Parsing is cached by file identity; stat checks still pick up new checkpoints.
-pairs, _ = saved_pairs('evaluation')
-history_runs = [saved for saved, _, _ in pairs if saved['source_id'] == 'project'
-                and len(saved.get('dataset', {}).get('snapshot', [])) == 60]
+# Render the first card while file parsing runs outside the UI thread.
+if st.session_state.get('tuning_history_error'):
+    st.error('History loading failed: ' + st.session_state.tuning_history_error)
+    st.stop()
+if 'tuning_history' not in st.session_state:
+    if 'tuning_history_future' not in st.session_state:
+        st.session_state.tuning_history_future = history_loader().submit(load_tuning_history)
+    pending_tuning_history()
+    st.stop()
+history_runs = st.session_state.tuning_history
 if not history_runs:
     st.info('No paired 60-question project experiment configurations found.')
     st.stop()

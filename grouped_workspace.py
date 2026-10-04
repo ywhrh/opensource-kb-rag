@@ -97,7 +97,7 @@ def shared_configuration(config, split):
     fields = flatten_fields(config)
     def owned(key):
         if split == 0:
-            return key.startswith('retrieval_pipeline.')
+            return key.startswith('retrieval_pipeline.') or key in {'bm25_search.enabled', 'rerank.enabled'}
         if split == 1:
             return key.startswith('vector_search.') and key != 'vector_search.top_k'
         if split == 2:
@@ -294,7 +294,11 @@ def grouped_workspace(history):
             elif stage == 2:
                 item['config']['vector_search']['top_k'] = root['config']['vector_search']['top_k']
                 for field in ('bm25_search', 'hybrid_fusion', 'rerank'):
+                    # Enablement belongs to the retrieval mode, not the shared search card.
+                    enabled = item['config'][field].get('enabled')
                     item['config'][field] = deepcopy(root['config'][field])
+                    if field in {'bm25_search', 'rerank'}:
+                        item['config'][field]['enabled'] = enabled
             else:
                 for field in ('generation', 'evaluation'):
                     item['config'][field] = deepcopy(root['config'][field])

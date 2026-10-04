@@ -87,3 +87,7 @@ The local services and real UI/API wiring are implemented. End-to-end retrieval,
 The Only existing tests button after Reset toggles history-constrained selection. Toggling restarts the selection flow; Reset preserves the mode. All parameter controls offer saved values that can complete a matching input/output pair for the fixed dataset and index, with shared settings compatible across both comparison paths. This mode never offers a Run trigger for missing results; normal mode retains free configuration.
 
 History YAML parsing uses the safe C loader when available and a bounded cache keyed by file modification time, change time, inode and size. Switching pages and adjusting cards reuse unchanged parsed pairs; new files and atomic evaluation checkpoints are discovered through fresh file metadata checks.
+
+Entering Tuning renders its first-card loading view immediately while a read-only worker loads history. A small UI fragment checks completion without blocking and enables the normal cards when ready. Refresh reloads history in the background; loading does not start evaluations or modify YAML.
+
+When Retrieval is checked out in Only existing tests mode, BM25 and reranker enablement follow each retrieval mode. These derived flags are excluded from the shared-settings comparison and are preserved per saved configuration, so valid Vector-only/Hybrid/Rerank comparisons remain selectable.
