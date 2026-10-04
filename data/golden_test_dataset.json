@@ -1,0 +1,362 @@
+[
+  {
+    "id": "semantic_001",
+    "category": "semantic",
+    "question": "Our deployment environment cannot reach the internet. How can we prepare a pretrained model beforehand and ensure loading does not contact the hosting service?",
+    "reference_answer": "Download the model repository and cache its files before going offline, for example with snapshot_download. Set HF_HUB_OFFLINE=1 to prevent HTTP calls to the Hub, or use from_pretrained(..., local_files_only=True) to load only locally cached files. Offline operation requires the needed files to already be available."
+  },
+  {
+    "id": "semantic_002",
+    "category": "semantic",
+    "question": "A pretrained model cannot fit entirely on our graphics card. How can loading spread its weights across available hardware instead of requiring everything on that card?",
+    "reference_answer": "Load the model with from_pretrained(..., device_map=\"auto\") to enable Accelerate Big Model Inference. Weights are dispatched to the fastest devices first, normally GPUs, and remaining weights can be offloaded to CPU and disk. This also avoids retaining separate random and pretrained copies during loading."
+  },
+  {
+    "id": "semantic_003",
+    "category": "semantic",
+    "question": "Why can a text model handle an unfamiliar long word without keeping every possible word in its vocabulary?",
+    "reference_answer": "Subword tokenization represents rare or unseen words as combinations of known subwords. This keeps vocabulary size manageable while retaining meaningful representations, rather than requiring every whole word to be present or treating text only as individual characters."
+  },
+  {
+    "id": "semantic_004",
+    "category": "semantic",
+    "question": "In a user-facing application, people currently see nothing until an entire answer finishes. What documented generation feature can make output appear progressively?",
+    "reference_answer": "Use streaming. Construct a TextStreamer with the tokenizer and pass it as the streamer argument to model.generate. It returns text as generation progresses rather than waiting for the complete response, reducing perceived latency."
+  },
+  {
+    "id": "semantic_005",
+    "category": "semantic",
+    "question": "A conversational model sometimes continues the user’s sentence instead of replying. How can we make the formatted conversation indicate that the next text should be an assistant response?",
+    "reference_answer": "Use the model’s chat template with add_generation_prompt=True to append tokens marking the start of an assistant response. This tells the model to reply instead of continuing the user message. Some models do not need such a prefix, so the option has no effect for those templates."
+  },
+  {
+    "id": "semantic_006",
+    "category": "semantic",
+    "question": "We want to adapt a large pretrained model on a consumer GPU and distribute only a small task-specific addition. What approach does the documentation recommend, and why does it save memory?",
+    "reference_answer": "Use parameter-efficient fine-tuning with adapters, such as LoRA. Only a small number of extra parameters are trained on top of the pretrained base model. The GPU does not need optimizer states and gradients for the base model, and the lightweight adapters are convenient to store, share and load."
+  },
+  {
+    "id": "semantic_007",
+    "category": "semantic",
+    "question": "Our training examples fit only in small batches, but we want updates equivalent to using a larger batch. How can we achieve that without placing the whole larger batch in memory at once?",
+    "reference_answer": "Use gradient accumulation: accumulate gradients across multiple mini-batches before updating model parameters. This produces a larger effective batch size while processing smaller batches. It can slow training because multiple forward and backward passes are needed for each update."
+  },
+  {
+    "id": "semantic_008",
+    "category": "semantic",
+    "question": "Intermediate activations are consuming too much memory during training. What technique can reduce their storage, and what cost should we expect?",
+    "reference_answer": "Enable gradient checkpointing. Store only some intermediate activations and recompute the remaining ones when needed during the backward pass. This reduces activation memory at the cost of slower training; the guide describes an approximately 20 percent slowdown."
+  },
+  {
+    "id": "semantic_009",
+    "category": "semantic",
+    "question": "An optimized model is slow on its first call but much faster on subsequent calls. What documented initialization cost can explain this pattern?",
+    "reference_answer": "torch.compile needs to compile the model initially, so the initial call is slow. Later calls can reuse the compiled model rather than compiling again, making them faster. The one-time compilation cost should be distinguished from subsequent execution performance."
+  },
+  {
+    "id": "semantic_010",
+    "category": "semantic",
+    "question": "A model’s weight storage is too large for deployment. What general compression approach can lower its memory requirements, and what property is it trying to retain?",
+    "reference_answer": "Quantization stores model weights in lower precision to reduce memory requirements while trying to retain as much accuracy as possible. Depending on the method, weights may use lower-precision floating point or integer representations such as int8 or int4. Methods differ in calibration requirements and other trade-offs."
+  },
+  {
+    "id": "semantic_011",
+    "category": "semantic",
+    "question": "We want to restore a compressed model to its original precision. What operation is documented, and what must we consider before using it?",
+    "reference_answer": "Call the model’s dequantize method to restore the original precision. Ensure enough GPU memory is available to hold the dequantized model, and note that dequantization may result in some quality loss."
+  },
+  {
+    "id": "semantic_012",
+    "category": "semantic",
+    "question": "We need to deploy a model with a runtime that is separate from the original training framework. What export format and supporting library are described for this purpose?",
+    "reference_answer": "Export the model to ONNX, an open standard for representing models through common operators and a computational graph across frameworks. The Optimum library provides export support, and ONNX Runtime can run the exported model through task-specific ORTModel classes."
+  },
+  {
+    "id": "semantic_013",
+    "category": "semantic",
+    "question": "Our preprocessing is a bottleneck because we encode text one sentence at a time. How should we organize it, and which tokenizer implementation is especially useful?",
+    "reference_answer": "Preprocess batches of text rather than one sentence at a time. Fast tokenizers are Rust-based implementations and are especially effective at parallelizing batched tokenization; they also provide additional alignment methods compared with Python tokenizers."
+  },
+  {
+    "id": "semantic_014",
+    "category": "semantic",
+    "question": "A training job stopped unexpectedly, but its saved checkpoints are still available. How can we continue from saved progress rather than restarting from scratch?",
+    "reference_answer": "Call trainer.train with resume_from_checkpoint=True to resume from the last checkpoint, or pass a specific checkpoint path to resume from that checkpoint. Saved checkpoints are intended to support recovery and continuation of training."
+  },
+  {
+    "id": "semantic_015",
+    "category": "semantic",
+    "question": "We loaded a general pretrained encoder for review classification and received a warning that the new classification layer has uninitialized weights. Why is this expected, and what should we do?",
+    "reference_answer": "The pretrained head is replaced by a randomly initialized classification head for the new task. That head must be fine-tuned on the classification dataset before it can produce meaningful predictions. Load the sequence-classification model with the appropriate number of labels and train it."
+  },
+  {
+    "id": "semantic_016",
+    "category": "semantic",
+    "question": "We found a published comparison in which one compression method is faster. How should we decide whether that method meets our own deployment requirements?",
+    "reference_answer": "Benchmark the quantized model’s accuracy and speed on your specific task and hardware instead of treating the published comparison as a universal guarantee. Check whether the measured results meet your own requirements and consult the method’s usage documentation."
+  },
+  {
+    "id": "semantic_017",
+    "category": "semantic",
+    "question": "Long conversations are exhausting GPU memory because their accumulated attention state is large. How can we keep less of that state on the GPU, and what performance trade-off follows?",
+    "reference_answer": "Use cache offloading. Most layers’ KV caches are moved to CPU, while the current layer’s cache is maintained on GPU and the next layer is prefetched. This saves GPU memory, but transfers between CPU and GPU can reduce generation throughput."
+  },
+  {
+    "id": "semantic_018",
+    "category": "semantic",
+    "question": "Our generation requests have very different lengths. Why might reserving one large fixed attention-state buffer be inefficient even though it helps compilation?",
+    "reference_answer": "A StaticCache preallocates a maximum size and supports compiling the decoding stage. However, unused positions are masked and still cause wasted attention computation, so a large fixed cache can be inefficient for many short requests mixed with a long request. It is a trade-off that is better suited to similar-length sequences."
+  },
+  {
+    "id": "semantic_019",
+    "category": "semantic",
+    "question": "We want to use an optimizer supplied by an external library with the standard training loop. What integration steps does the guide describe?",
+    "reference_answer": "Install the library that supplies the optimizer and choose its identifier with the optim parameter in TrainingArguments. Depending on the optimizer, configure additional settings such as optim_target_modules or optim_args as documented, then use those training arguments with Trainer."
+  },
+  {
+    "id": "semantic_020",
+    "category": "semantic",
+    "question": "A custom attention implementation needs a different attention-mask format. What additional registration is needed so the model can construct the appropriate mask?",
+    "reference_answer": "Register a corresponding mask function with AttentionMaskInterface in addition to the custom attention function. The mask interface adapts mask creation to the selected attention implementation. If no matching mask function is registered, mask creation is skipped."
+  },
+  {
+    "id": "keyword_001",
+    "category": "keyword",
+    "question": "What do padding=\"longest\" and padding=\"max_length\" do when the tokenizer receives a single sequence?",
+    "reference_answer": "padding=\"longest\" (or True) applies no padding to a single sequence. padding=\"max_length\" still pads a single sequence to the specified max_length, or to the model’s maximum length if max_length is not provided."
+  },
+  {
+    "id": "keyword_002",
+    "category": "keyword",
+    "question": "For a pair of sequences, which truncation value preserves the first sequence and truncates only the second?",
+    "reference_answer": "Use truncation=\"only_second\". It truncates only the second sequence of a pair to satisfy the specified max_length, or the model’s maximum accepted length when max_length is not provided."
+  },
+  {
+    "id": "keyword_003",
+    "category": "keyword",
+    "question": "Which Pipeline parameter value returns only newly generated text instead of including the prompt?",
+    "reference_answer": "Pass return_full_text=False to the text-generation pipeline. It returns the generated continuation rather than the prompt plus generated text."
+  },
+  {
+    "id": "keyword_004",
+    "category": "keyword",
+    "question": "What return_timestamps value requests word-level timestamps from an automatic speech recognition pipeline?",
+    "reference_answer": "Use return_timestamps=\"word\". It requests timestamps indicating when each word was spoken."
+  },
+  {
+    "id": "keyword_005",
+    "category": "keyword",
+    "question": "What is the documented purpose of dtype=\"auto\" when loading pretrained model weights?",
+    "reference_answer": "dtype=\"auto\" initializes weights directly in the data type in which they are stored. This can avoid loading them twice, first in PyTorch’s default float32 and then in the desired data type."
+  },
+  {
+    "id": "keyword_006",
+    "category": "keyword",
+    "question": "What is the documented default max_shard_size in save_pretrained, and what does that parameter control?",
+    "reference_answer": "max_shard_size defaults to 5GB for each checkpoint shard. It controls the shard size used when saving model weights, helping the resulting checkpoint fit memory-limited environments."
+  },
+  {
+    "id": "keyword_007",
+    "category": "keyword",
+    "question": "Which tokenizer return_tensors value requests PyTorch tensors?",
+    "reference_answer": "Set return_tensors=\"pt\" when calling the tokenizer to request PyTorch tensors."
+  },
+  {
+    "id": "keyword_008",
+    "category": "keyword",
+    "question": "After apply_chat_template(tokenize=False), what add_special_tokens value should be used if the formatted string is tokenized later?",
+    "reference_answer": "Set add_special_tokens=False. The chat template should already contain the required special tokens, so adding them again can duplicate tokens and hurt model performance."
+  },
+  {
+    "id": "keyword_009",
+    "category": "keyword",
+    "question": "What do raise_exception(msg) and strftime_now(format_str) do inside a chat template?",
+    "reference_answer": "raise_exception(msg) raises a TemplateException, useful for debugging or reporting incorrect template usage. strftime_now(format_str) retrieves the current date and time formatted with the supplied format string."
+  },
+  {
+    "id": "keyword_010",
+    "category": "keyword",
+    "question": "What does max_new_tokens control in text generation?",
+    "reference_answer": "max_new_tokens controls the maximum number of newly generated tokens. Set it explicitly when a longer response is needed instead of relying on a potentially small generation default."
+  },
+  {
+    "id": "keyword_011",
+    "category": "keyword",
+    "question": "What settings enable multinomial sampling rather than beam search in generate?",
+    "reference_answer": "Set do_sample=True and num_beams=1. This samples tokens from the model’s probability distribution without maintaining multiple beams."
+  },
+  {
+    "id": "keyword_012",
+    "category": "keyword",
+    "question": "Which cache_implementation values enable offloading for dynamic and static caches respectively?",
+    "reference_answer": "Use cache_implementation=\"offloaded\" for the dynamic cache and cache_implementation=\"offloaded_static\" for the static cache. These can be configured in GenerationConfig or generate."
+  },
+  {
+    "id": "keyword_013",
+    "category": "keyword",
+    "question": "What attention-mask shape is required when implementing an iterative forward loop with a KV cache?",
+    "reference_answer": "The attention mask must have shape (batch_size, past_kv_length + new_tokens_length), covering both previously cached tokens and current tokens."
+  },
+  {
+    "id": "keyword_014",
+    "category": "keyword",
+    "question": "Which TrainingArguments setting in the classification example reports evaluation accuracy at the end of each epoch?",
+    "reference_answer": "Use eval_strategy=\"epoch\" in TrainingArguments. Supply a compute_metrics function to Trainer to compute the classification metric."
+  },
+  {
+    "id": "keyword_015",
+    "category": "keyword",
+    "question": "What does ZeRO stage 1 shard, and what extra states does ZeRO stage 2 shard?",
+    "reference_answer": "ZeRO-1 shards optimizer states across GPUs. ZeRO-2 shards both optimizer states and gradient states across GPUs."
+  },
+  {
+    "id": "keyword_016",
+    "category": "keyword",
+    "question": "How can set_attn_implementation switch an already loaded model back to SDPA?",
+    "reference_answer": "Call model.set_attn_implementation(\"sdpa\"). This changes the attention function without needing to reload the model."
+  },
+  {
+    "id": "keyword_017",
+    "category": "keyword",
+    "question": "Which BitsAndBytesConfig option enables nested four-bit quantization, and how much extra storage does the guide say it saves?",
+    "reference_answer": "Set bnb_4bit_use_double_quant=True alongside load_in_4bit=True. Nested quantization quantizes already quantized weights again and saves an additional 0.4 bits per parameter."
+  },
+  {
+    "id": "keyword_018",
+    "category": "keyword",
+    "question": "What value of GPTQConfig.backend activates the Marlin kernel, and what bit width does that kernel support?",
+    "reference_answer": "Set backend=\"marlin\" in GPTQConfig. The documented Marlin kernel supports four-bit GPTQ inference and is optimized for NVIDIA A100 GPUs."
+  },
+  {
+    "id": "keyword_019",
+    "category": "keyword",
+    "question": "What do AwqConfig.do_fuse and fuse_max_seq_len configure?",
+    "reference_answer": "do_fuse=True enables fused AWQ modules. fuse_max_seq_len is the total sequence length, including both the input context and expected generated text; choose a sufficiently large value."
+  },
+  {
+    "id": "keyword_020",
+    "category": "keyword",
+    "question": "What input-padding control is recommended with static KV cache and torch.compile to reduce shape-related recompilations?",
+    "reference_answer": "Left-pad inputs using pad_to_multiple_of to a limited set of values. This reduces changes in input shapes that can trigger recompilation."
+  },
+  {
+    "id": "distractor_001",
+    "category": "distractor",
+    "question": "A developer sets padding=True and claims this alone will shorten overlong inputs to the model limit. Is that correct, and what control is missing?",
+    "reference_answer": "No. Padding adds padding tokens to shorter sequences; it does not shorten long ones. Enable truncation=True, optionally with max_length, to truncate overlong inputs. Padding and truncation solve opposite length problems."
+  },
+  {
+    "id": "distractor_002",
+    "category": "distractor",
+    "question": "We want to continue an assistant message that already starts a JSON object. Should we enable add_generation_prompt and continue_final_message together to be safe?",
+    "reference_answer": "No. Use continue_final_message=True to continue the existing final message. add_generation_prompt starts a new assistant message, whereas continue_final_message removes end-of-sequence markers to continue one. Combining the two returns an error."
+  },
+  {
+    "id": "distractor_003",
+    "category": "distractor",
+    "question": "For supervised training on completed conversations, should we keep add_generation_prompt=True because it is helpful when generating assistant replies?",
+    "reference_answer": "No. Apply the chat template while preprocessing training data, but set add_generation_prompt=False. The extra tokens that prompt a new assistant response are not helpful during training on the supplied conversations."
+  },
+  {
+    "id": "distractor_004",
+    "category": "distractor",
+    "question": "Is beam search the same as greedily choosing the highest-probability next token at every step? Explain the difference.",
+    "reference_answer": "No. Greedy search selects the most likely next token at each step. Beam search tracks several candidate sequences and selects one with the highest overall probability, so it can retain a sequence whose early tokens are not locally the most likely."
+  },
+  {
+    "id": "distractor_005",
+    "category": "distractor",
+    "question": "Can WatermarkDetector use an arbitrary WatermarkingConfig to detect text that was generated with another configuration?",
+    "reference_answer": "No. WatermarkDetector must use the same WatermarkingConfig as the one used during generation. It detects the proportion of green tokens under that watermarking scheme."
+  },
+  {
+    "id": "distractor_006",
+    "category": "distractor",
+    "question": "Does constructing a model from its configuration give us the pretrained checkpoint’s learned weights?",
+    "reference_answer": "No. A configuration describes the architecture and its attributes; constructing the model this way yields random weights that need training. Load learned checkpoint weights with from_pretrained instead."
+  },
+  {
+    "id": "distractor_007",
+    "category": "distractor",
+    "question": "Can we freely replace a pretrained model’s tokenizer with another tokenizer just because both produce input IDs?",
+    "reference_answer": "No. The tokenizer’s vocabulary must match the vocabulary expected by the pretrained model. A custom tokenizer with a different vocabulary cannot be assumed interchangeable merely because it produces numeric input IDs."
+  },
+  {
+    "id": "distractor_008",
+    "category": "distractor",
+    "question": "We have two attached adapters. Does enable_adapters select only the second adapter in the same way as set_adapter(\"lora_2\")?",
+    "reference_answer": "No. set_adapter(\"lora_2\") selects that adapter and disables the others. enable_adapters is a broader operation that enables all adapters attached to the model."
+  },
+  {
+    "id": "distractor_009",
+    "category": "distractor",
+    "question": "Because cached attention state speeds up generation, should we also enable it during model training?",
+    "reference_answer": "No. The documentation says caching should be used only for inference and may cause unexpected errors if enabled during training."
+  },
+  {
+    "id": "distractor_010",
+    "category": "distractor",
+    "question": "A reused KV cache contains ten tokens, including padding positions. Should cache_position for the next token subtract the padding count?",
+    "reference_answer": "No. cache_position is unaffected by padding and advances once per token. For a cache containing ten tokens, the next position is torch.tensor([10]), regardless of padding tokens."
+  },
+  {
+    "id": "distractor_011",
+    "category": "distractor",
+    "question": "Is the dynamically growing cache the preferred choice when we specifically need a fixed shape for compiling decoding?",
+    "reference_answer": "No. DynamicCache grows as generation progresses. StaticCache preallocates a maximum capacity and supports compiling decoding, at the cost of unused masked positions and potentially wasted computation."
+  },
+  {
+    "id": "distractor_012",
+    "category": "distractor",
+    "question": "If we enable a static KV cache and compile the model, can we freely change batch size or increase maximum output length without triggering recompilation?",
+    "reference_answer": "No. Changing batch size or increasing maximum output length between calls can reinitialize and recompile the cache. generate tries to reuse the cache to avoid recompilation, so workload shape changes still matter."
+  },
+  {
+    "id": "distractor_013",
+    "category": "distractor",
+    "question": "We chose SDPA but also request output_attentions=True. Should we assume the same fast attention implementation is still being used?",
+    "reference_answer": "No. The guide lists output_attentions=True and head_mask as unsupported by SDPA and says Transformers warns and falls back to the slower eager implementation for such options."
+  },
+  {
+    "id": "distractor_014",
+    "category": "distractor",
+    "question": "Can we combine fused AWQ modules with FlashAttention2 to stack both optimizations?",
+    "reference_answer": "No. The AWQ documentation explicitly says fused modules cannot be combined with optimization techniques such as FlashAttention2. Choose a compatible configuration instead of enabling both together."
+  },
+  {
+    "id": "distractor_015",
+    "category": "distractor",
+    "question": "Can the Marlin backend perform the initial GPTQ quantization of a full-precision model, as well as accelerate its later inference?",
+    "reference_answer": "No. The documented Marlin backend is for quantized inference only and does not support model quantization. Initial quantization must be performed by a supported quantization workflow before Marlin is used for inference."
+  },
+  {
+    "id": "distractor_016",
+    "category": "distractor",
+    "question": "After enabling eight-bit CPU offloading, are the offloaded CPU weights also stored as eight-bit integers?",
+    "reference_answer": "No. The bitsandbytes offloading section says weights dispatched to CPU are stored in float32 and are not converted to eight-bit."
+  },
+  {
+    "id": "distractor_017",
+    "category": "distractor",
+    "question": "Do bnb_4bit_quant_type=\"nf4\" and bnb_4bit_compute_dtype=torch.bfloat16 control the same thing?",
+    "reference_answer": "No. bnb_4bit_quant_type=\"nf4\" selects the four-bit weight quantization representation, which the guide recommends for normally distributed weights when training four-bit base models. bnb_4bit_compute_dtype selects the computation data type, such as bfloat16; it does not select the four-bit storage format."
+  },
+  {
+    "id": "distractor_018",
+    "category": "distractor",
+    "question": "Are GPTQ and AWQ on-the-fly methods that require no calibration dataset, just like the no-calibration approaches listed in the guide?",
+    "reference_answer": "No. The selecting guide groups GPTQ/GPTQModel and AWQ under Calibration-based Quantization, which requires an upfront calibration step using a dataset. bitsandbytes, HQQ and torchao are listed under No Calibration Required."
+  },
+  {
+    "id": "distractor_019",
+    "category": "distractor",
+    "question": "We serve individual low-latency requests on a CPU. Should we increase Pipeline batch_size because batching is guaranteed to make inference faster?",
+    "reference_answer": "No. Pipeline batch inference may help, especially on a GPU, but faster performance is not guaranteed. The guide advises against batching for latency-constrained live products and CPU use, and says to measure on the actual model, data and hardware."
+  },
+  {
+    "id": "distractor_020",
+    "category": "distractor",
+    "question": "With fullgraph=True, will torch.compile quietly split the model into several graphs when it encounters a graph break?",
+    "reference_answer": "No. fullgraph=True attempts to compile the entire model into one graph. torch.compile raises an error if it encounters a graph break instead of quietly accepting several graphs."
+  }
+]

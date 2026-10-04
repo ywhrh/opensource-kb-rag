@@ -1,0 +1,8 @@
+[
+  {
+    "id": "semantic_001",
+    "category": "semantic",
+    "question": "Our deployment environment cannot reach the internet. How can we prepare a pretrained model beforehand and ensure loading does not contact the hosting service?",
+    "reference_answer": "Download the model repository and cache its files before going offline, for example with snapshot_download. Set HF_HUB_OFFLINE=1 to prevent HTTP calls to the Hub, or use from_pretrained(..., local_files_only=True) to load only locally cached files. Offline operation requires the needed files to already be available."
+  }
+]

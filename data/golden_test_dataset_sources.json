@@ -1,0 +1,1187 @@
+{
+  "corpus": "Transformers v4.57.1 (local document snapshot)",
+  "language": "en",
+  "authoring_status": "Drafted from source documentation; not independently human-reviewed or evaluated",
+  "category_counts": {
+    "semantic": 20,
+    "keyword": 20,
+    "distractor": 20
+  },
+  "definitions": {
+    "semantic": "Natural-language need or symptom, without naming the target API/parameter in the question.",
+    "keyword": "Exact API, parameter, enum, numeric setting or tensor-shape lookup.",
+    "distractor": "Answerable contrast or false premise requiring rejection of a plausible nearby alternative; not an unanswerable-negative set."
+  },
+  "cases": [
+    {
+      "id": "semantic_001",
+      "file": "installation.md",
+      "focus": "Map an offline deployment requirement to preparation and loading controls.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/installation.md",
+      "source_sha256": "d3b2f88ea4a8bbf0d2fa4318ec0f5b65fe6fcf85843cc459baa792ac546940b0",
+      "evidence": [
+        {
+          "section": "Offline mode",
+          "line_start": 142,
+          "line_end": 142,
+          "exact_excerpt": "To use Transformers in an offline or firewalled environment requires the downloaded and cached files ahead of time. Download a model repository from the Hub with the [`~huggingface_hub.snapshot_download`] method."
+        },
+        {
+          "section": "Offline mode",
+          "line_start": 153,
+          "line_end": 153,
+          "exact_excerpt": "Set the environment variable `HF_HUB_OFFLINE=1` to prevent HTTP calls to the Hub when loading a model."
+        },
+        {
+          "section": "Offline mode",
+          "line_start": 160,
+          "line_end": 160,
+          "exact_excerpt": "Another option for only loading cached files is to set `local_files_only=True` in [`~PreTrainedModel.from_pretrained`]."
+        }
+      ]
+    },
+    {
+      "id": "semantic_002",
+      "file": "models.md",
+      "focus": "Understand automatic placement from a memory-limited deployment scenario.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/models.md",
+      "source_sha256": "fcf76208b32ad85ee9600d528d247083f5d39be642d724612d4351e44ff0cb4d",
+      "evidence": [
+        {
+          "section": "Big Model Inference",
+          "line_start": 200,
+          "line_end": 200,
+          "exact_excerpt": "Big Model Inference's second feature relates to how weights are loaded and dispatched in the model skeleton. Model weights are dispatched across all available devices, starting with the fastest device (usually the GPU) and then offloading any remaining weights to slower devices (CPU and hard drive)."
+        },
+        {
+          "section": "Big Model Inference",
+          "line_start": 204,
+          "line_end": 204,
+          "exact_excerpt": "Set [device_map](https://github.com/huggingface/transformers/blob/026a173a64372e9602a16523b8fae9de4b0ff428/src/transformers/modeling_utils.py#L3061) to `\"auto\"` to enable Big Model Inference."
+        },
+        {
+          "section": "Big Model Inference",
+          "line_start": 195,
+          "line_end": 195,
+          "exact_excerpt": "Randomly initialized weights are only created when the pretrained weights are loaded to avoid maintaining two copies of the model in memory at the same time. The maximum memory usage is only the size of the model."
+        }
+      ]
+    },
+    {
+      "id": "semantic_003",
+      "file": "tokenizer_summary.md",
+      "focus": "Explain the purpose of subword representation from an unseen-word scenario.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/tokenizer_summary.md",
+      "source_sha256": "8e310fb8d331693c8ac389d040a868275e4870f9be9777a0c652d05b11e5af8f",
+      "evidence": [
+        {
+          "section": "Subword tokenization",
+          "line_start": 104,
+          "line_end": 107,
+          "exact_excerpt": "Subword tokenization allows the model to have a reasonable vocabulary size while being able to learn meaningful\ncontext-independent representations. In addition, subword tokenization enables the model to process words it has never\nseen before, by decomposing them into known subwords. For instance, the [`~transformers.BertTokenizer`] tokenizes\n`\"I have a new GPU!\"` as follows:"
+        }
+      ]
+    },
+    {
+      "id": "semantic_004",
+      "file": "generation_features.md",
+      "focus": "Connect user-visible waiting to progressive output.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/generation_features.md",
+      "source_sha256": "9771377e742872d8e69b6513e78422f4c7861ce9ad4cadf00bdecc92efc32dcc",
+      "evidence": [
+        {
+          "section": "Streaming",
+          "line_start": 25,
+          "line_end": 25,
+          "exact_excerpt": "Streaming starts returning text as soon as it is generated so you don't have to wait to see the entire generated response all at once. It is important in user-facing applications because it reduces perceived latency and allows users to see the generation progression."
+        },
+        {
+          "section": "Streaming",
+          "line_start": 34,
+          "line_end": 34,
+          "exact_excerpt": "Create an instance of [`TextStreamer`] with the tokenizer. Pass [`TextStreamer`] to the `streamer` parameter in [`~GenerationMixin.generate`] to stream the output one word at a time."
+        }
+      ]
+    },
+    {
+      "id": "semantic_005",
+      "file": "chat_templating.md",
+      "focus": "Diagnose a conversation boundary problem without naming its control in the question.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/chat_templating.md",
+      "source_sha256": "f822eb57b47c467f120358b0088a1b69575b4ae4fe3807fb23ac6073d759dbab",
+      "evidence": [
+        {
+          "section": "add_generation_prompt",
+          "line_start": 131,
+          "line_end": 133,
+          "exact_excerpt": "You may have noticed the [add_generation_prompt](https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template.add_generation_prompt) argument in the above examples.\nThis argument adds tokens to the end of the chat that indicate the start of an `assistant` response. Remember: Beneath all the chat abstractions, chat models are still just language models that continue a sequence of tokens!\nIf you include tokens that tell it that it's now in an `assistant` response, it will correctly write a response, but if you don't include these tokens, the model may get confused and do something strange, like **continuing** the user's message instead of replying to it!"
+        },
+        {
+          "section": "add_generation_prompt",
+          "line_start": 171,
+          "line_end": 171,
+          "exact_excerpt": "Not all models require generation prompts, and some models, like [Llama](./model_doc/llama), don't have any special tokens before the `assistant` response. In these cases, [add_generation_prompt](https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template.add_generation_prompt) has no effect."
+        }
+      ]
+    },
+    {
+      "id": "semantic_006",
+      "file": "peft.md",
+      "focus": "Relate limited training resources and small deliverables to adapters.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/peft.md",
+      "source_sha256": "b40e765f871c57839133b1e496ef3ec3f6c9800f484ca2d0b151c782e8198508",
+      "evidence": [
+        {
+          "section": "PEFT",
+          "line_start": 16,
+          "line_end": 16,
+          "exact_excerpt": "[PEFT](https://huggingface.co/docs/peft/index), a library of parameter-efficient fine-tuning methods, enables training and storing large models on consumer GPUs. These methods only fine-tune a small number of extra model parameters, also known as adapters, on top of the pretrained model. A significant amount of memory is saved because the GPU doesn't need to store the optimizer states and gradients for the pretrained base model. Adapters are very lightweight, making it convenient to share, store, and load them."
+        }
+      ]
+    },
+    {
+      "id": "semantic_007",
+      "file": "perf_train_gpu_one.md",
+      "focus": "Distinguish an effective training batch from a simultaneously resident batch.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/perf_train_gpu_one.md",
+      "source_sha256": "9468e39f9b4e89e7002e35af4fc13e528bda7a7ab91a6daad9b0f923997710ff",
+      "evidence": [
+        {
+          "section": "Gradient accumulation",
+          "line_start": 63,
+          "line_end": 63,
+          "exact_excerpt": "Gradient accumulation overcomes memory constraints - useful for fitting a very large model that otherwise wouldn't fit on a single GPU - by accumulating gradients over multiple mini-batches before updating the parameters. This reduces memory by storing fewer gradients and enables training with a larger *effective batch size* because usually, the parameters are updated from a single batch of data. Training can slow down though due to the additional forward and backward passes introduced by gradient accumulation."
+        }
+      ]
+    },
+    {
+      "id": "semantic_008",
+      "file": "perf_train_gpu_one.md",
+      "focus": "Identify recomputation as the trade-off for activation storage.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/perf_train_gpu_one.md",
+      "source_sha256": "9468e39f9b4e89e7002e35af4fc13e528bda7a7ab91a6daad9b0f923997710ff",
+      "evidence": [
+        {
+          "section": "Gradient checkpointing",
+          "line_start": 86,
+          "line_end": 86,
+          "exact_excerpt": "Gradient checkpointing reduces memory usage by only storing some of the intermediate activations during the backward pass and recomputing the remaining activations. This avoids storing *all* of the intermediate activations from the forward pass, which can require a lot of memory overhead. However, it comes at the cost of slower training speed (~20%)."
+        }
+      ]
+    },
+    {
+      "id": "semantic_009",
+      "file": "perf_torch_compile.md",
+      "focus": "Interpret cold-start latency rather than confusing it with steady-state inference.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/perf_torch_compile.md",
+      "source_sha256": "d07b0ed8e6ac037b7bd9a27022c63876a15a1f71aab43f595c075de2c4240678",
+      "evidence": [
+        {
+          "section": "torch.compile",
+          "line_start": 29,
+          "line_end": 30,
+          "exact_excerpt": "> [!TIP]\n> The initial call to torch.compile is slow because the model needs to be compiled. Subsequent calls to the compiled model are much faster because it doesn't need to compile again."
+        }
+      ]
+    },
+    {
+      "id": "semantic_010",
+      "file": "quantization/overview.md",
+      "focus": "Explain weight precision reduction without requiring an algorithm name in the question.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/overview.md",
+      "source_sha256": "38965487e3c0478986e8284600cec4b9c9ae96c39d2efcb62e7a2b99b235649e",
+      "evidence": [
+        {
+          "section": "Overview",
+          "line_start": 19,
+          "line_end": 19,
+          "exact_excerpt": "Quantization lowers the memory requirements of loading and using a model by storing the weights in a lower precision while trying to preserve as much accuracy as possible. Weights are typically stored in full-precision (fp32) floating point representations, but half-precision (fp16 or bf16) are increasingly popular data types given the large size of models today. Some quantization methods can reduce the precision even further to integer representations, like int8 or int4."
+        },
+        {
+          "section": "Overview",
+          "line_start": 21,
+          "line_end": 21,
+          "exact_excerpt": "Transformers supports many quantization methods, each with their pros and cons, so you can pick the best one for your specific use case. Some methods require calibration for greater accuracy and extreme compression (1-2 bits), while other methods work out of the box with on-the-fly quantization."
+        }
+      ]
+    },
+    {
+      "id": "semantic_011",
+      "file": "quantization/bitsandbytes.md",
+      "focus": "Map restoration of compressed weights to the operation and its caveats.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/bitsandbytes.md",
+      "source_sha256": "6ab6ff24e0247c542fc12fbff8a431ed9847745e5d3183fc01e65571c4e7de0b",
+      "evidence": [
+        {
+          "section": "Dequantizing bitsandbytes models",
+          "line_start": 329,
+          "line_end": 329,
+          "exact_excerpt": "Once quantized, you can [`~PreTrainedModel.dequantize`] a model to the original precision but this may result in some quality loss. Make sure you have enough GPU memory to fit the dequantized model."
+        }
+      ]
+    },
+    {
+      "id": "semantic_012",
+      "file": "serialization.md",
+      "focus": "Map cross-framework deployment to the export and execution tools.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/serialization.md",
+      "source_sha256": "4c5814c40cc563adae3eee85fa48d0e9f5d63b968d128869aba51b2d7f4af231",
+      "evidence": [
+        {
+          "section": "ONNX",
+          "line_start": 19,
+          "line_end": 19,
+          "exact_excerpt": "[ONNX](http://onnx.ai) is an open standard that defines a common set of operators and a file format to represent deep learning models in different frameworks, including PyTorch and TensorFlow. When a model is exported to ONNX, the operators construct a computational graph (or *intermediate representation*) which represents the flow of data through the model. Standardized operators and data types makes it easy to switch between frameworks."
+        },
+        {
+          "section": "ONNX",
+          "line_start": 21,
+          "line_end": 21,
+          "exact_excerpt": "The [Optimum](https://huggingface.co/docs/optimum/index) library exports a model to ONNX with configuration objects which are supported for [many architectures](https://huggingface.co/docs/optimum/exporters/onnx/overview) and can be easily extended. If a model isn't supported, feel free to make a [contribution](https://huggingface.co/docs/optimum/exporters/onnx/usage_guides/contribute) to Optimum."
+        },
+        {
+          "section": "ONNX",
+          "line_start": 25,
+          "line_end": 27,
+          "exact_excerpt": "- [Graph optimization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization) and [quantization](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization) for improving inference.\n- Use the [`~optimum.onnxruntime.ORTModel`] API to run a model with [ONNX Runtime](https://onnxruntime.ai/).\n- Use [optimized inference pipelines](https://huggingface.co/docs/optimum/main/en/onnxruntime/usage_guides/pipelines) for ONNX models."
+        }
+      ]
+    },
+    {
+      "id": "semantic_013",
+      "file": "fast_tokenizers.md",
+      "focus": "Relate preprocessing throughput to batching and implementation.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/fast_tokenizers.md",
+      "source_sha256": "cadbea19c76ac7c9992404740b552f7c92dd2f9b69d1b61b9c70cacb9c20bd02",
+      "evidence": [
+        {
+          "section": "Batch tokenization",
+          "line_start": 311,
+          "line_end": 311,
+          "exact_excerpt": "It is faster and more efficient to preprocess *batches* of text instead of a single sentence at a time. Fast tokenizers are especially good at parallelizing tokenization."
+        },
+        {
+          "section": "Fast tokenizers",
+          "line_start": 136,
+          "line_end": 136,
+          "exact_excerpt": "[`PreTrainedTokenizerFast`] or *fast tokenizers* are Rust-based tokenizers from the [Tokenizers](https://hf.co/docs/tokenizers) library. It is significantly faster at batched tokenization and provides additional alignment methods compared to the Python-based tokenizers."
+        }
+      ]
+    },
+    {
+      "id": "semantic_014",
+      "file": "trainer.md",
+      "focus": "Recover a stopped training workflow.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/trainer.md",
+      "source_sha256": "f5614c6308770c3c4e93feeb2075c6b1cfa02872d0592f254b149bc0667d4c01",
+      "evidence": [
+        {
+          "section": "Checkpoints",
+          "line_start": 87,
+          "line_end": 87,
+          "exact_excerpt": "Saving checkpoints are useful for resuming training or recovering your training progress if you encounter an error. Set the `resume_from_checkpoint` parameter in [`~Trainer.train`] to resume training from the last checkpoint or a specific checkpoint."
+        },
+        {
+          "section": "Checkpoints",
+          "line_start": 92,
+          "line_end": 94,
+          "exact_excerpt": "```py\ntrainer.train(resume_from_checkpoint=True)\n```"
+        }
+      ]
+    },
+    {
+      "id": "semantic_015",
+      "file": "training.md",
+      "focus": "Interpret task-head initialization as a normal adaptation step.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/training.md",
+      "source_sha256": "cdca6b92550605fffd2485a65bea07910f245964cc70fbcaa671e250930ca85c",
+      "evidence": [
+        {
+          "section": "Trainer",
+          "line_start": 77,
+          "line_end": 78,
+          "exact_excerpt": "> [!TIP]\n> The message above is a reminder that the models pretrained head is discarded and replaced with a randomly initialized classification head. The randomly initialized head needs to be fine-tuned on your specific task to output meaningful predictions."
+        },
+        {
+          "section": "Trainer",
+          "line_start": 72,
+          "line_end": 75,
+          "exact_excerpt": "model = AutoModelForSequenceClassification.from_pretrained(\"google-bert/bert-base-cased\", num_labels=5)\n\"Some weights of BertForSequenceClassification were not initialized from the model checkpoint at google-bert/bert-base-cased and are newly initialized: ['classifier.bias', 'classifier.weight']\"\n\"You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.\"\n```"
+        }
+      ]
+    },
+    {
+      "id": "semantic_016",
+      "file": "quantization/selecting.md",
+      "focus": "Interpret benchmark results in the context of the actual workload.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/selecting.md",
+      "source_sha256": "9e2fa5d074868490f2f0934234e7011f2933f3696831f22e4c5d96703badf49c",
+      "evidence": [
+        {
+          "section": "Benchmark Comparison",
+          "line_start": 156,
+          "line_end": 157,
+          "exact_excerpt": "> [!TIP]\n> Always benchmark the performance (accuracy and speed) of the quantized model on your specific task and hardware to ensure it meets your requirements. Refer to the individual documentation pages linked above for detailed usage instructions."
+        }
+      ]
+    },
+    {
+      "id": "semantic_017",
+      "file": "kv_cache.md",
+      "focus": "Diagnose long-context state memory rather than weight memory.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/kv_cache.md",
+      "source_sha256": "d5dfb6b93c31ec48ade7ee5fab15753cfefb182b0ee8044e76ce70b806b1ecf1",
+      "evidence": [
+        {
+          "section": "Cache offloading",
+          "line_start": 95,
+          "line_end": 95,
+          "exact_excerpt": "Offloading the cache saves GPU memory by moving the KV cache for model layers except one to the CPU. Only the current layer cache is maintained on the GPU during a models `forward` iteration over the layers. It will asynchronously prefetch the next layer's cache, and send back the current layer's cache back to the CPU after attention computation."
+        },
+        {
+          "section": "Cache offloading",
+          "line_start": 99,
+          "line_end": 100,
+          "exact_excerpt": "> [!WARNING]\n> You may notice a small degradation in generation throughput compared to a full on-device cache, depending on your model and generation choices (context size, number of generated tokens, number of beams, etc.). This is because moving the key/value states back and forth requires some work."
+        }
+      ]
+    },
+    {
+      "id": "semantic_018",
+      "file": "kv_cache.md",
+      "focus": "Assess workload shape when choosing fixed cache capacity.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/kv_cache.md",
+      "source_sha256": "d5dfb6b93c31ec48ade7ee5fab15753cfefb182b0ee8044e76ce70b806b1ecf1",
+      "evidence": [
+        {
+          "section": "Fixed-size cache",
+          "line_start": 72,
+          "line_end": 72,
+          "exact_excerpt": "A fixed-size cache ([`StaticCache`]) pre-allocates a specific maximum cache size for the kv pairs. You can generate up to the maximum cache size without needing to modify it. However, having a fixed (usually large) size for the key/value states means that while generating, a lot of tokens will actually be masked as they should not take part in the attention. So this trick allows to easily `compile` the decoding stage, but it incurs a waste of tokens in the attention computation. As all things, it's then a trade-off which should be very good if you generate with several sequence of more or less the same lengths, but may be sub-optimal if you have for example 1 very large sequence, and then only short sequences (as the fix cache size would be large, a lot would be wasted for the short sequences). Make sure you understand the impact if you use it!"
+        }
+      ]
+    },
+    {
+      "id": "semantic_019",
+      "file": "optimizers.md",
+      "focus": "Connect external optimizer installation to the native training interface.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/optimizers.md",
+      "source_sha256": "687d1702386b85ac71c47738976bc7a414b160447e1d45c88843d2bb673255d8",
+      "evidence": [
+        {
+          "section": "Optimizers",
+          "line_start": 19,
+          "line_end": 19,
+          "exact_excerpt": "Transformers offers two native optimizers, AdamW and AdaFactor. It also provides integrations for more specialized optimizers. Install the library that offers the optimizer and drop it in the `optim` parameter in [`TrainingArguments`]."
+        },
+        {
+          "section": "APOLLO",
+          "line_start": 50,
+          "line_end": 50,
+          "exact_excerpt": "Use the `optim_target_modules` parameter to specify which layers to train."
+        },
+        {
+          "section": "APOLLO",
+          "line_start": 70,
+          "line_end": 70,
+          "exact_excerpt": "For additional training options, use `optim_args` to define hyperparameters like `rank`, `scale`, and more. Refer to the table below for a complete list of available hyperparameters."
+        }
+      ]
+    },
+    {
+      "id": "semantic_020",
+      "file": "attention_interface.md",
+      "focus": "Understand the coupled interfaces behind a custom attention backend.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/attention_interface.md",
+      "source_sha256": "fb99e288a8ba6b880097a09f6738c2b926fd77723c3e3f25fe62358c71ae7dbc",
+      "evidence": [
+        {
+          "section": "Attention Mask Interface",
+          "line_start": 160,
+          "line_end": 162,
+          "exact_excerpt": "Having a new attention function may mean that you need a new format of attention mask to decide what key and value tokens\nthe query tokens should attend to. This is now possible with the `AttentionMaskInterface`! It works in the same way as\nthe `AttentionInterface`:"
+        },
+        {
+          "section": "Attention Mask Interface",
+          "line_start": 176,
+          "line_end": 178,
+          "exact_excerpt": "The reason you have to register it is because we need to automatically correct your mask format based on the attention implementation (for example, flex attention uses a BlockMask format, while sdpa uses a 4D tensor).\nBy default, if you do not register an attention mask function along with your attention function, mask creation will be skipped\nand `attention_mask=None` will be passed along to the Attention layers."
+        }
+      ]
+    },
+    {
+      "id": "keyword_001",
+      "file": "pad_truncation.md",
+      "focus": "Exact padding enum behavior.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/pad_truncation.md",
+      "source_sha256": "6bf141bc79a51a747723d210748b2d576d6bf0283e154a532bdcc403aece5333",
+      "evidence": [
+        {
+          "section": "Padding and truncation",
+          "line_start": 25,
+          "line_end": 29,
+          "exact_excerpt": "- `True` or `'longest'`: pad to the longest sequence in the batch (no padding is applied if you only provide\n    a single sequence).\n- `'max_length'`: pad to a length specified by the `max_length` argument or the maximum length accepted\n    by the model if no `max_length` is provided (`max_length=None`). Padding will still be applied if you only provide a single sequence.\n- `False` or `'do_not_pad'`: no padding is applied. This is the default behavior."
+        }
+      ]
+    },
+    {
+      "id": "keyword_002",
+      "file": "pad_truncation.md",
+      "focus": "Precise truncation enum.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/pad_truncation.md",
+      "source_sha256": "6bf141bc79a51a747723d210748b2d576d6bf0283e154a532bdcc403aece5333",
+      "evidence": [
+        {
+          "section": "Padding and truncation",
+          "line_start": 33,
+          "line_end": 43,
+          "exact_excerpt": "- `True` or `'longest_first'`: truncate to a maximum length specified by the `max_length` argument or\n    the maximum length accepted by the model if no `max_length` is provided (`max_length=None`). This will\n    truncate token by token, removing a token from the longest sequence in the pair until the proper length is\n    reached.\n- `'only_second'`: truncate to a maximum length specified by the `max_length` argument or the maximum\n    length accepted by the model if no `max_length` is provided (`max_length=None`). This will only truncate\n    the second sentence of a pair if a pair of sequences (or a batch of pairs of sequences) is provided.\n- `'only_first'`: truncate to a maximum length specified by the `max_length` argument or the maximum\n    length accepted by the model if no `max_length` is provided (`max_length=None`). This will only truncate\n    the first sentence of a pair if a pair of sequences (or a batch of pairs of sequences) is provided.\n- `False` or `'do_not_truncate'`: no truncation is applied. This is the default behavior."
+        }
+      ]
+    },
+    {
+      "id": "keyword_003",
+      "file": "pipeline_tutorial.md",
+      "focus": "Locate a task-specific return parameter.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/pipeline_tutorial.md",
+      "source_sha256": "3b37a2ae0ad25d87e7982900c5f29d757c385200ba3457f0b4c57dc5f22d453e",
+      "evidence": [
+        {
+          "section": "Task-specific parameters",
+          "line_start": 256,
+          "line_end": 256,
+          "exact_excerpt": "Pass `return_full_text=False` to [`Pipeline`] to only return the generated text instead of the full text (prompt and generated text)."
+        }
+      ]
+    },
+    {
+      "id": "keyword_004",
+      "file": "pipeline_tutorial.md",
+      "focus": "Exact ASR parameter value.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/pipeline_tutorial.md",
+      "source_sha256": "3b37a2ae0ad25d87e7982900c5f29d757c385200ba3457f0b4c57dc5f22d453e",
+      "evidence": [
+        {
+          "section": "Task-specific parameters",
+          "line_start": 222,
+          "line_end": 222,
+          "exact_excerpt": "Pass the `return_timestamps=\"word\"` parameter to [`Pipeline`] to return when each word was spoken."
+        }
+      ]
+    },
+    {
+      "id": "keyword_005",
+      "file": "quicktour.md",
+      "focus": "Exact loading parameter semantics.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quicktour.md",
+      "source_sha256": "b2dfd818595ddeeec5b18459e809d1557f20e742ea585830849436245c45d914",
+      "evidence": [
+        {
+          "section": "Pretrained models",
+          "line_start": 86,
+          "line_end": 87,
+          "exact_excerpt": "- `device_map=\"auto\"` automatically allocates the model weights to your fastest device first.\n- `dtype=\"auto\"` directly initializes the model weights in the data type they're stored in, which can help avoid loading the weights twice (PyTorch loads weights in `torch.float32` by default)."
+        }
+      ]
+    },
+    {
+      "id": "keyword_006",
+      "file": "models.md",
+      "focus": "Exact checkpoint parameter and value.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/models.md",
+      "source_sha256": "fcf76208b32ad85ee9600d528d247083f5d39be642d724612d4351e44ff0cb4d",
+      "evidence": [
+        {
+          "section": "Sharded checkpoints",
+          "line_start": 119,
+          "line_end": 119,
+          "exact_excerpt": "The `max_shard_size` parameter defaults to 5GB for each shard because it is easier to run on free-tier GPU instances without running out of memory."
+        }
+      ]
+    },
+    {
+      "id": "keyword_007",
+      "file": "fast_tokenizers.md",
+      "focus": "Framework tensor enum.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/fast_tokenizers.md",
+      "source_sha256": "cadbea19c76ac7c9992404740b552f7c92dd2f9b69d1b61b9c70cacb9c20bd02",
+      "evidence": [
+        {
+          "section": "Tokenizers",
+          "line_start": 31,
+          "line_end": 37,
+          "exact_excerpt": "tokenizer = AutoTokenizer.from_pretrained(\"google/gemma-2-2b\")\ntokenizer(\"We are very happy to show you the 🤗 Transformers library\", return_tensors=\"pt\")\n{'input_ids': tensor([[     2,   1734,    708,   1508,   4915,    577,   1500,    692,    573,\n         156808, 128149,   9581, 235265]]),\n 'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "keyword_008",
+      "file": "chat_templating.md",
+      "focus": "Exact flag for two-step chat formatting.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/chat_templating.md",
+      "source_sha256": "f822eb57b47c467f120358b0088a1b69575b4ae4fe3807fb23ac6073d759dbab",
+      "evidence": [
+        {
+          "section": "Using `apply_chat_template`",
+          "line_start": 125,
+          "line_end": 127,
+          "exact_excerpt": "> [!WARNING]\n> Some tokenizers add special `<bos>` and `<eos>` tokens. Chat templates should already include all the necessary special tokens, and adding additional special tokens is often incorrect or duplicated, hurting model performance. When you format text with `apply_chat_template(tokenize=False)`, make sure you set `add_special_tokens=False` if you tokenize later to avoid duplicating these tokens.\n> This isn't an issue if you use `apply_chat_template(tokenize=True)`, which means it's usually the safer option!"
+        }
+      ]
+    },
+    {
+      "id": "keyword_009",
+      "file": "chat_templating_writing.md",
+      "focus": "Exact Jinja helper names and outputs.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/chat_templating_writing.md",
+      "source_sha256": "08c4e4e8f71ea33db965b7357dd730399fc815e1aadf2b1835a0130d4c736a3f",
+      "evidence": [
+        {
+          "section": "Special variables and callables",
+          "line_start": 119,
+          "line_end": 120,
+          "exact_excerpt": "- `raise_exception(msg)` raises a `TemplateException`. This is useful for debugging or warning users about incorrect template usage.\n- `strftime_now(format_str)` retrieves the current date and time in a specific format, which is often required in system messages. It is equivalent to [datetime.now().strftime(format_str)](https://docs.python.org/3/library/datetime.html#datetime.datetime.now) in Python."
+        }
+      ]
+    },
+    {
+      "id": "keyword_010",
+      "file": "llm_tutorial.md",
+      "focus": "Identify the generation-length parameter.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/llm_tutorial.md",
+      "source_sha256": "4650e6eb894730812b1f134e975e668b0c65cc58f876438898531cf15fafe23d",
+      "evidence": [
+        {
+          "section": "Common Options",
+          "line_start": 150,
+          "line_end": 157,
+          "exact_excerpt": "| Option name | Type | Simplified description |\n|---|---|---|\n| `max_new_tokens` | `int` | Controls the maximum generation length. Be sure to define it, as it usually defaults to a small value. |\n| `do_sample` | `bool` | Defines whether generation will sample the next token (`True`), or is greedy instead (`False`). Most use cases should set this flag to `True`. Check [this guide](./generation_strategies) for more information. |\n| `temperature` | `float` | How unpredictable the next selected token will be. High values (`>0.8`) are good for creative tasks, low values (e.g. `<0.4`) for tasks that require \"thinking\". Requires `do_sample=True`. |\n| `num_beams` | `int` | When set to `>1`, activates the beam search algorithm. Beam search is good on input-grounded tasks. Check [this guide](./generation_strategies) for more information. |\n| `repetition_penalty` | `float` | Set it to `>1.0` if you're seeing the model repeat itself often. Larger values apply a larger penalty. |\n| `eos_token_id` | `list[int]` | The token(s) that will cause generation to stop. The default value is usually good, but you can specify a different token. |"
+        }
+      ]
+    },
+    {
+      "id": "keyword_011",
+      "file": "generation_strategies.md",
+      "focus": "Exact decoding configuration.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/generation_strategies.md",
+      "source_sha256": "4de5825f2f8e3a72b41771daa379328d79adf352584e54e319f517e3c9d7f11b",
+      "evidence": [
+        {
+          "section": "Sampling",
+          "line_start": 53,
+          "line_end": 53,
+          "exact_excerpt": "Enable multinomial sampling with `do_sample=True` and `num_beams=1`."
+        }
+      ]
+    },
+    {
+      "id": "keyword_012",
+      "file": "kv_cache.md",
+      "focus": "Similar cache enum identifiers.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/kv_cache.md",
+      "source_sha256": "d5dfb6b93c31ec48ade7ee5fab15753cfefb182b0ee8044e76ce70b806b1ecf1",
+      "evidence": [
+        {
+          "section": "Cache offloading",
+          "line_start": 102,
+          "line_end": 103,
+          "exact_excerpt": "Offloading is available for both [`DynamicCache`] and [`StaticCache`]. You can enable it by configuring `cache_implementation=\"offloaded\"` for the dynamic version, or `cache_implementation=\"offloaded_static\"` for the static version, in either [`GenerationConfig`] or [`~GenerationMixin.generate`].\nAdditionally, you can also instantiate your own [`DynamicCache`] or [`StaticCache`] with the `offloading=True` option, and pass this cache in `generate` or your model's `forward` (for example, `past_key_values=DynamicCache(config=model.config, offloading=True)` for a dynamic cache)."
+        }
+      ]
+    },
+    {
+      "id": "keyword_013",
+      "file": "cache_explanation.md",
+      "focus": "Exact shape and dimension meaning.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/cache_explanation.md",
+      "source_sha256": "50131d48d5931ece3674e5d9fcb10c3ba07820ac717868956b742d3e950ece6c",
+      "evidence": [
+        {
+          "section": "Cache class",
+          "line_start": 78,
+          "line_end": 78,
+          "exact_excerpt": "2. When the `forward` method is called iteratively, it's crucial that the attention mask shape matches the combined length of the past and current kv pairs. The attention mask should have the shape `(batch_size, past_kv_length + new_tokens_length)`. This is typically handled internally in [`~GenerationMixin.generate`], but if you want to implement your own generation loop with [`Cache`], keep this in mind! The attention mask should hold the past and current token values."
+        }
+      ]
+    },
+    {
+      "id": "keyword_014",
+      "file": "training.md",
+      "focus": "Precise training-evaluation API name.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/training.md",
+      "source_sha256": "cdca6b92550605fffd2485a65bea07910f245964cc70fbcaa671e250930ca85c",
+      "evidence": [
+        {
+          "section": "Trainer",
+          "line_start": 99,
+          "line_end": 99,
+          "exact_excerpt": "Set up [`TrainingArguments`] with where to save the model and when to compute accuracy during training. The example below sets it to `\"epoch\"`, which reports the accuracy at the end of each epoch. Add `push_to_hub=True` to upload the model to the Hub after training."
+        },
+        {
+          "section": "Trainer",
+          "line_start": 113,
+          "line_end": 122,
+          "exact_excerpt": "```py\ntrainer = Trainer(\n    model=model,\n    args=training_args,\n    train_dataset=dataset[\"train\"],\n    eval_dataset=dataset[\"test\"],\n    compute_metrics=compute_metrics,\n)\ntrainer.train()\n```"
+        }
+      ]
+    },
+    {
+      "id": "keyword_015",
+      "file": "deepspeed.md",
+      "focus": "Exact stage-number behavior.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/deepspeed.md",
+      "source_sha256": "b0c5059068d4ab34c983b20cf23d919656fea7cb1f9437869d5b29df6acd164d",
+      "evidence": [
+        {
+          "section": "ZeRO stage",
+          "line_start": 166,
+          "line_end": 166,
+          "exact_excerpt": "ZeRO-1 shards the optimizer states across GPUs and you can expect a small speed up."
+        },
+        {
+          "section": "ZeRO stage",
+          "line_start": 179,
+          "line_end": 179,
+          "exact_excerpt": "ZeRO-2 shards the optimizer and gradient states across GPUs. This stage is primarily used for training since its features are not relevant to inference. Some important parameters to configure for better performance include the following."
+        }
+      ]
+    },
+    {
+      "id": "keyword_016",
+      "file": "attention_interface.md",
+      "focus": "Exact runtime switching method.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/attention_interface.md",
+      "source_sha256": "fb99e288a8ba6b880097a09f6738c2b926fd77723c3e3f25fe62358c71ae7dbc",
+      "evidence": [
+        {
+          "section": "Dynamically switching attention function",
+          "line_start": 65,
+          "line_end": 67,
+          "exact_excerpt": "```python\n# Back to use original sdpa implementation\nmodel.set_attn_implementation(\"sdpa\")"
+        },
+        {
+          "section": "Dynamically switching attention function",
+          "line_start": 72,
+          "line_end": 73,
+          "exact_excerpt": "and it will stop printing the statements, as it now uses the `sdpa` attention.  \nThis allows to quickly change an attention function, without needing to reload the model!"
+        }
+      ]
+    },
+    {
+      "id": "keyword_017",
+      "file": "quantization/bitsandbytes.md",
+      "focus": "Exact nested-quantization flag and documented amount.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/bitsandbytes.md",
+      "source_sha256": "6ab6ff24e0247c542fc12fbff8a431ed9847745e5d3183fc01e65571c4e7de0b",
+      "evidence": [
+        {
+          "section": "Nested quantization",
+          "line_start": 319,
+          "line_end": 322,
+          "exact_excerpt": "double_quant_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_use_double_quant=True,\n)"
+        },
+        {
+          "section": "Nested quantization",
+          "line_start": 314,
+          "line_end": 314,
+          "exact_excerpt": "Nested quantization can save additional memory at no additional performance cost. This feature performs a second quantization of the already quantized weights to save an additional 0.4 bits/parameter. For example, with nested quantization, you can finetune a [Llama-13b](https://huggingface.co/meta-llama/Llama-2-13b) model on a 16GB NVIDIA T4 GPU with a sequence length of 1024, a batch size of 1, and enable gradient accumulation with 4 steps."
+        }
+      ]
+    },
+    {
+      "id": "keyword_018",
+      "file": "quantization/gptq.md",
+      "focus": "Exact backend enum and bit-width restriction.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/gptq.md",
+      "source_sha256": "592094cbc2b94c1d2352d87b9b0817a005309c1531c2231dff9c09329a75270a",
+      "evidence": [
+        {
+          "section": "Marlin",
+          "line_start": 121,
+          "line_end": 122,
+          "exact_excerpt": "model = AutoModelForCausalLM.from_pretrained(\"{your_username}/opt-125m-gptq\", device_map=\"auto\", quantization_config=GPTQConfig(bits=4, backend=\"marlin\"))\n```"
+        },
+        {
+          "section": "Marlin",
+          "line_start": 113,
+          "line_end": 113,
+          "exact_excerpt": "[Marlin](https://github.com/IST-DASLab/marlin) is a 4-bit only CUDA GPTQ kernel, highly optimized for the NVIDIA A100 GPU (Ampere) architecture. Loading, dequantization, and execution of post-dequantized weights are highly parallelized, offering a substantial inference improvement versus the original CUDA GPTQ kernel. Marlin is only available for quantized inference and does not support model quantization."
+        }
+      ]
+    },
+    {
+      "id": "keyword_019",
+      "file": "quantization/awq.md",
+      "focus": "Exact AWQ fusion controls.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/quantization/awq.md",
+      "source_sha256": "941f2775ff99dcd4c7a0716f9245cdff62e8afcf0165f76d9ad7f095a7f5d573",
+      "evidence": [
+        {
+          "section": "Fused modules",
+          "line_start": 92,
+          "line_end": 92,
+          "exact_excerpt": "Create an [`AwqConfig`] and set the parameters `fuse_max_seq_len` and `do_fuse=True` to enable fused modules. The `fuse_max_seq_len` parameter is the total sequence length and it should include the context length and the expected generation length. Set it to a larger value to be safe."
+        }
+      ]
+    },
+    {
+      "id": "keyword_020",
+      "file": "llm_optims.md",
+      "focus": "Locate an optimization-specific tokenizer parameter.",
+      "trap": null,
+      "source_path": "data/documents/transformers-v4.57.1/llm_optims.md",
+      "source_sha256": "ca257a2dddd2da0877a848412e2f9024cf0981ee0b847a94059864581d5a441e",
+      "evidence": [
+        {
+          "section": "Static kv-cache and torch.compile",
+          "line_start": 40,
+          "line_end": 41,
+          "exact_excerpt": "> [!TIP]\n> Regardless of how you use the static kv-cache and torch.compile, left-pad your inputs with [pad_to_multiple_of](https://hf.co/docs/transformers/main_classes/tokenizer#transformers.PreTrainedTokenizer.__call__.pad_to_multiple_of) to a limited set of values to avoid shape-related recompilations."
+        }
+      ]
+    },
+    {
+      "id": "distractor_001",
+      "file": "pad_truncation.md",
+      "focus": "Reject conflating padding with truncation.",
+      "trap": "Padding configuration is plausible but does not truncate.",
+      "source_path": "data/documents/transformers-v4.57.1/pad_truncation.md",
+      "source_sha256": "6bf141bc79a51a747723d210748b2d576d6bf0283e154a532bdcc403aece5333",
+      "evidence": [
+        {
+          "section": "Padding and truncation",
+          "line_start": 19,
+          "line_end": 19,
+          "exact_excerpt": "Batched inputs are often different lengths, so they can't be converted to fixed-size tensors. Padding and truncation are strategies for dealing with this problem, to create rectangular tensors from batches of varying lengths. Padding adds a special **padding token** to ensure shorter sequences will have the same length as either the longest sequence in a batch or the maximum length accepted by the model. Truncation works in the other direction by truncating long sequences."
+        },
+        {
+          "section": "Padding and truncation",
+          "line_start": 31,
+          "line_end": 31,
+          "exact_excerpt": "The `truncation` argument controls truncation. It can be a boolean or a string:"
+        }
+      ]
+    },
+    {
+      "id": "distractor_002",
+      "file": "chat_templating.md",
+      "focus": "Choose continuation rather than a new-message prefix.",
+      "trap": "Both flags sound relevant, but their message-boundary operations conflict.",
+      "source_path": "data/documents/transformers-v4.57.1/chat_templating.md",
+      "source_sha256": "f822eb57b47c467f120358b0088a1b69575b4ae4fe3807fb23ac6073d759dbab",
+      "evidence": [
+        {
+          "section": "continue_final_message",
+          "line_start": 177,
+          "line_end": 177,
+          "exact_excerpt": "This is useful for “prefilling” a model response. In the example below, the model generates text that continues the JSON string rather than starting a new message. It can be very useful for improving the accuracy of instruction following when you know how to start its replies."
+        },
+        {
+          "section": "continue_final_message",
+          "line_start": 189,
+          "line_end": 190,
+          "exact_excerpt": "> [!WARNING]\n> You shouldn't use [add_generation_prompt](https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template.add_generation_prompt) and [continue_final_message](https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template.continue_final_message) together. The former adds tokens that start a new message, while the latter removes end of sequence tokens. Using them together returns an error."
+        }
+      ]
+    },
+    {
+      "id": "distractor_003",
+      "file": "chat_templating.md",
+      "focus": "Distinguish training formatting from inference prompting.",
+      "trap": "An inference setting is incorrectly transferred to training.",
+      "source_path": "data/documents/transformers-v4.57.1/chat_templating.md",
+      "source_sha256": "f822eb57b47c467f120358b0088a1b69575b4ae4fe3807fb23ac6073d759dbab",
+      "evidence": [
+        {
+          "section": "Model training",
+          "line_start": 196,
+          "line_end": 196,
+          "exact_excerpt": "Training a model with a chat template is a good way to ensure the template matches the tokens the model was trained on. Apply the chat template as a preprocessing step to your dataset. Set `add_generation_prompt=False` because the additional tokens to prompt an assistant response aren't helpful during training."
+        }
+      ]
+    },
+    {
+      "id": "distractor_004",
+      "file": "generation_strategies.md",
+      "focus": "Distinguish local token selection from sequence-level candidates.",
+      "trap": "Both pursue probability, but optimize over different candidate structures.",
+      "source_path": "data/documents/transformers-v4.57.1/generation_strategies.md",
+      "source_sha256": "4de5825f2f8e3a72b41771daa379328d79adf352584e54e319f517e3c9d7f11b",
+      "evidence": [
+        {
+          "section": "Greedy search",
+          "line_start": 29,
+          "line_end": 29,
+          "exact_excerpt": "Greedy search is the default decoding strategy. It selects the next most likely token at each step. Unless specified in [`GenerationConfig`], this strategy generates a maximum of 20 new tokens."
+        },
+        {
+          "section": "Beam search",
+          "line_start": 73,
+          "line_end": 73,
+          "exact_excerpt": "Beam search keeps track of several generated sequences (beams) at each time step. After a certain number of steps, it selects the sequence with the highest *overall* probability. Unlike greedy search, this strategy can \"look ahead\" and pick a sequence with a higher probability overall even if the initial tokens have a lower probability. It is best suited for input-grounded tasks, like describing an image or speech recognition. You can also use `do_sample=True` with beam search to sample at each step, but beam search will still greedily prune out low probability sequences between steps."
+        }
+      ]
+    },
+    {
+      "id": "distractor_005",
+      "file": "generation_features.md",
+      "focus": "Respect matched generation/detection settings.",
+      "trap": "A detector with the right class name but wrong configuration is not equivalent.",
+      "source_path": "data/documents/transformers-v4.57.1/generation_features.md",
+      "source_sha256": "9771377e742872d8e69b6513e78422f4c7861ce9ad4cadf00bdecc92efc32dcc",
+      "evidence": [
+        {
+          "section": "Watermarking",
+          "line_start": 75,
+          "line_end": 75,
+          "exact_excerpt": "Create an instance of [`WatermarkDetector`] and pass the model output to it to detect whether the text is machine-generated. The [`WatermarkDetector`] must have the same [`WatermarkingConfig`] used during generation."
+        },
+        {
+          "section": "Watermarking",
+          "line_start": 57,
+          "line_end": 58,
+          "exact_excerpt": "> [!TIP]\n> The [`WatermarkDetector`] class detects the proportion of green tokens in generated text, which is why it is recommended to strip the prompt text, if it is much longer than the generated text. Padding can also have an effect on [`WatermarkDetector`]."
+        }
+      ]
+    },
+    {
+      "id": "distractor_006",
+      "file": "models.md",
+      "focus": "Distinguish architecture configuration from trained checkpoint weights.",
+      "trap": "Architecture compatibility is mistaken for pretrained state.",
+      "source_path": "data/documents/transformers-v4.57.1/models.md",
+      "source_sha256": "fcf76208b32ad85ee9600d528d247083f5d39be642d724612d4351e44ff0cb4d",
+      "evidence": [
+        {
+          "section": "Models and configurations",
+          "line_start": 36,
+          "line_end": 36,
+          "exact_excerpt": "All models have a `configuration.py` file with specific attributes like the number of hidden layers, vocabulary size, activation function, and more. You'll also find a `modeling.py` file that defines the layers and mathematical operations taking place inside each layer. The `modeling.py` file takes the model attributes in `configuration.py` and builds the model accordingly. At this point, you have a model with random weights that needs to be trained to output meaningful results."
+        },
+        {
+          "section": "Model classes",
+          "line_start": 50,
+          "line_end": 50,
+          "exact_excerpt": "To get a pretrained model, you need to load the weights into the model. This is done by calling [`~PreTrainedModel.from_pretrained`] which accepts weights from the Hugging Face Hub or a local directory."
+        }
+      ]
+    },
+    {
+      "id": "distractor_007",
+      "file": "fast_tokenizers.md",
+      "focus": "Disambiguate token IDs from the model-specific vocabulary they index.",
+      "trap": "Identical output type does not imply matching token semantics.",
+      "source_path": "data/documents/transformers-v4.57.1/fast_tokenizers.md",
+      "source_sha256": "cadbea19c76ac7c9992404740b552f7c92dd2f9b69d1b61b9c70cacb9c20bd02",
+      "evidence": [
+        {
+          "section": "Tokenizers",
+          "line_start": 39,
+          "line_end": 39,
+          "exact_excerpt": "Whichever tokenizer you use, make sure the tokenizer vocabulary is the same as the pretrained models tokenizer vocabulary. This is especially important if you're using a custom tokenizer with a different vocabulary from the pretrained models tokenizer."
+        }
+      ]
+    },
+    {
+      "id": "distractor_008",
+      "file": "peft.md",
+      "focus": "Distinguish selecting one adapter from enabling adapters broadly.",
+      "trap": "Similar method names have different selection scope.",
+      "source_path": "data/documents/transformers-v4.57.1/peft.md",
+      "source_sha256": "b40e765f871c57839133b1e496ef3ec3f6c9800f484ca2d0b151c782e8198508",
+      "evidence": [
+        {
+          "section": "Set adapter",
+          "line_start": 136,
+          "line_end": 136,
+          "exact_excerpt": "Once added, use [`~integrations.PeftAdapterMixin.set_adapter`] to force a model to use the specified adapter and disable the other adapters."
+        },
+        {
+          "section": "Enable and disable adapter",
+          "line_start": 144,
+          "line_end": 144,
+          "exact_excerpt": "[`~integrations.PeftAdapterMixin.enable_adapters`] is a broader function that enables *all* adapters attached to a model, and [`~integrations.PeftAdapterMixin.disable_adapters`] disables *all* attached adapters."
+        }
+      ]
+    },
+    {
+      "id": "distractor_009",
+      "file": "cache_explanation.md",
+      "focus": "Reject moving an inference cache optimization into training.",
+      "trap": "A generation speed optimization is wrongly applied to training.",
+      "source_path": "data/documents/transformers-v4.57.1/cache_explanation.md",
+      "source_sha256": "50131d48d5931ece3674e5d9fcb10c3ba07820ac717868956b742d3e950ece6c",
+      "evidence": [
+        {
+          "section": "Caching",
+          "line_start": 29,
+          "line_end": 30,
+          "exact_excerpt": "> [!WARNING]\n> Caching should only be used for **inference**. It may cause unexpected errors if it's enabled during training."
+        }
+      ]
+    },
+    {
+      "id": "distractor_010",
+      "file": "cache_explanation.md",
+      "focus": "Distinguish cache positions from a count of unpadded tokens.",
+      "trap": "Masking padding does not change the positional counter for cached tokens.",
+      "source_path": "data/documents/transformers-v4.57.1/cache_explanation.md",
+      "source_sha256": "50131d48d5931ece3674e5d9fcb10c3ba07820ac717868956b742d3e950ece6c",
+      "evidence": [
+        {
+          "section": "Cache class",
+          "line_start": 80,
+          "line_end": 80,
+          "exact_excerpt": "3. It is also important to be aware of the `cache_position`. This is important if you want to reuse a prefilled [`Cache`] with the `forward` method because you have to pass a valid `cache_position` value. This indicates the input positions in a sequence. `cache_position` is unaffected by padding, and it always adds one more position for each token. For example, if a kv cache contains 10 tokens - regardless of pad tokens - the cache position for the next token should be `torch.tensor([10])`."
+        }
+      ]
+    },
+    {
+      "id": "distractor_011",
+      "file": "kv_cache.md",
+      "focus": "Distinguish dynamic growth from compile-friendly fixed capacity.",
+      "trap": "Dynamic storage flexibility is confused with static-shape compilation.",
+      "source_path": "data/documents/transformers-v4.57.1/kv_cache.md",
+      "source_sha256": "d5dfb6b93c31ec48ade7ee5fab15753cfefb182b0ee8044e76ce70b806b1ecf1",
+      "evidence": [
+        {
+          "section": "Default cache",
+          "line_start": 35,
+          "line_end": 35,
+          "exact_excerpt": "The [`DynamicCache`] is the default cache class for all models. It allows the cache size to grow dynamically in order to store an increasing number of keys and values as generation progresses."
+        },
+        {
+          "section": "Fixed-size cache",
+          "line_start": 72,
+          "line_end": 72,
+          "exact_excerpt": "A fixed-size cache ([`StaticCache`]) pre-allocates a specific maximum cache size for the kv pairs. You can generate up to the maximum cache size without needing to modify it. However, having a fixed (usually large) size for the key/value states means that while generating, a lot of tokens will actually be masked as they should not take part in the attention. So this trick allows to easily `compile` the decoding stage, but it incurs a waste of tokens in the attention computation. As all things, it's then a trade-off which should be very good if you generate with several sequence of more or less the same lengths, but may be sub-optimal if you have for example 1 very large sequence, and then only short sequences (as the fix cache size would be large, a lot would be wasted for the short sequences). Make sure you understand the impact if you use it!"
+        }
+      ]
+    },
+    {
+      "id": "distractor_012",
+      "file": "llm_optims.md",
+      "focus": "Identify exceptions to cache/graph reuse.",
+      "trap": "A static cache does not guarantee reuse across arbitrary shape changes.",
+      "source_path": "data/documents/transformers-v4.57.1/llm_optims.md",
+      "source_sha256": "ca257a2dddd2da0877a848412e2f9024cf0981ee0b847a94059864581d5a441e",
+      "evidence": [
+        {
+          "section": "Static kv-cache and torch.compile",
+          "line_start": 71,
+          "line_end": 72,
+          "exact_excerpt": "1. If the batch size changes or the maximum output length increases between calls, the cache is reinitialized and recompiled.\n2. The first several calls of the compiled function are slower because it is being compiled."
+        },
+        {
+          "section": "Static kv-cache and torch.compile",
+          "line_start": 69,
+          "line_end": 69,
+          "exact_excerpt": "Under the hood, [`~GenerationMixin.generate`] attempts to reuse the same cache object to avoid recompilation at each call, which is critical to get the most out of [torch.compile](./perf_torch_compile). Be aware of the following to avoid triggering recompilation or if generation is slower than expected."
+        }
+      ]
+    },
+    {
+      "id": "distractor_013",
+      "file": "perf_infer_gpu_one.md",
+      "focus": "Identify a feature-triggered attention backend fallback.",
+      "trap": "The configured backend name does not guarantee it remains active with unsupported options.",
+      "source_path": "data/documents/transformers-v4.57.1/perf_infer_gpu_one.md",
+      "source_sha256": "175a5a43da81fe94d56c65eefbe11be57c3e7a02a197ae0bc880497a2347f71b",
+      "evidence": [
+        {
+          "section": "Scaled dot product attention (SDPA)",
+          "line_start": 178,
+          "line_end": 178,
+          "exact_excerpt": "SDPA is used by default for PyTorch v2.1.1. and greater when an implementation is available. You could explicitly enable SDPA by setting `attn_implementation=\"sdpa\"` in [`~PreTrainedModel.from_pretrained`] though. Certain attention parameters, such as `head_mask` and `output_attentions=True`, are unsupported and returns a warning that Transformers will fall back to the (slower) eager implementation."
+        }
+      ]
+    },
+    {
+      "id": "distractor_014",
+      "file": "quantization/awq.md",
+      "focus": "Reject an explicitly incompatible optimization combination.",
+      "trap": "Two individually useful optimizations are assumed compatible.",
+      "source_path": "data/documents/transformers-v4.57.1/quantization/awq.md",
+      "source_sha256": "941f2775ff99dcd4c7a0716f9245cdff62e8afcf0165f76d9ad7f095a7f5d573",
+      "evidence": [
+        {
+          "section": "Fused modules",
+          "line_start": 86,
+          "line_end": 87,
+          "exact_excerpt": "> [!WARNING]\n> Fused modules cannot be combined with other optimization techniques such as FlashAttention2."
+        }
+      ]
+    },
+    {
+      "id": "distractor_015",
+      "file": "quantization/gptq.md",
+      "focus": "Separate quantization creation from quantized execution.",
+      "trap": "An inference kernel is incorrectly treated as a quantizer.",
+      "source_path": "data/documents/transformers-v4.57.1/quantization/gptq.md",
+      "source_sha256": "592094cbc2b94c1d2352d87b9b0817a005309c1531c2231dff9c09329a75270a",
+      "evidence": [
+        {
+          "section": "Marlin",
+          "line_start": 113,
+          "line_end": 113,
+          "exact_excerpt": "[Marlin](https://github.com/IST-DASLab/marlin) is a 4-bit only CUDA GPTQ kernel, highly optimized for the NVIDIA A100 GPU (Ampere) architecture. Loading, dequantization, and execution of post-dequantized weights are highly parallelized, offering a substantial inference improvement versus the original CUDA GPTQ kernel. Marlin is only available for quantized inference and does not support model quantization."
+        }
+      ]
+    },
+    {
+      "id": "distractor_016",
+      "file": "quantization/bitsandbytes.md",
+      "focus": "Separate quantized GPU loading from CPU offload representation.",
+      "trap": "The model’s eight-bit label is incorrectly applied to every device’s storage.",
+      "source_path": "data/documents/transformers-v4.57.1/quantization/bitsandbytes.md",
+      "source_sha256": "6ab6ff24e0247c542fc12fbff8a431ed9847745e5d3183fc01e65571c4e7de0b",
+      "evidence": [
+        {
+          "section": "Offloading",
+          "line_start": 200,
+          "line_end": 200,
+          "exact_excerpt": "8-bit models can offload weights between the CPU and GPU to fit very large models into memory. The weights dispatched to the CPU are stored in **float32** and aren't converted to 8-bit. For example, enable offloading for [bigscience/bloom-1b7](https://huggingface.co/bigscience/bloom-1b7) through [`BitsAndBytesConfig`]."
+        }
+      ]
+    },
+    {
+      "id": "distractor_017",
+      "file": "quantization/bitsandbytes.md",
+      "focus": "Separate quantized weight representation from computation dtype.",
+      "trap": "Similar quantization settings operate on different kinds of precision.",
+      "source_path": "data/documents/transformers-v4.57.1/quantization/bitsandbytes.md",
+      "source_sha256": "6ab6ff24e0247c542fc12fbff8a431ed9847745e5d3183fc01e65571c4e7de0b",
+      "evidence": [
+        {
+          "section": "Compute data type",
+          "line_start": 284,
+          "line_end": 284,
+          "exact_excerpt": "### Compute data type"
+        },
+        {
+          "section": "Normal Float 4 (NF4)",
+          "line_start": 297,
+          "line_end": 297,
+          "exact_excerpt": "NF4 is a 4-bit data type from the [QLoRA](https://hf.co/papers/2305.14314) paper, adapted for weights initialized from a normal distribution. You should use NF4 for training 4-bit base models."
+        },
+        {
+          "section": "Normal Float 4 (NF4)",
+          "line_start": 302,
+          "line_end": 305,
+          "exact_excerpt": "nf4_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_quant_type=\"nf4\",\n)"
+        }
+      ]
+    },
+    {
+      "id": "distractor_018",
+      "file": "quantization/selecting.md",
+      "focus": "Distinguish calibration-based methods from on-the-fly methods.",
+      "trap": "All reduced-precision loading workflows are assumed to have the same preparation needs.",
+      "source_path": "data/documents/transformers-v4.57.1/quantization/selecting.md",
+      "source_sha256": "9e2fa5d074868490f2f0934234e7011f2933f3696831f22e4c5d96703badf49c",
+      "evidence": [
+        {
+          "section": "No Calibration Required (On-the-fly Quantization)",
+          "line_start": 35,
+          "line_end": 35,
+          "exact_excerpt": "### No Calibration Required (On-the-fly Quantization)"
+        },
+        {
+          "section": "Calibration-based Quantization",
+          "line_start": 71,
+          "line_end": 71,
+          "exact_excerpt": "These methods require an upfront calibration step using a dataset to potentially achieve higher accuracy."
+        },
+        {
+          "section": "GPTQ/GPTQModel",
+          "line_start": 73,
+          "line_end": 73,
+          "exact_excerpt": "#### GPTQ/GPTQModel"
+        },
+        {
+          "section": "AWQ (Activation-aware Weight Quantization)",
+          "line_start": 85,
+          "line_end": 85,
+          "exact_excerpt": "#### AWQ (Activation-aware Weight Quantization)"
+        }
+      ]
+    },
+    {
+      "id": "distractor_019",
+      "file": "pipeline_tutorial.md",
+      "focus": "Separate batch throughput opportunities from live latency constraints.",
+      "trap": "A throughput-oriented setting is treated as a universal latency improvement.",
+      "source_path": "data/documents/transformers-v4.57.1/pipeline_tutorial.md",
+      "source_sha256": "3b37a2ae0ad25d87e7982900c5f29d757c385200ba3457f0b4c57dc5f22d453e",
+      "evidence": [
+        {
+          "section": "Batch inference",
+          "line_start": 171,
+          "line_end": 171,
+          "exact_excerpt": "[`Pipeline`] can also process batches of inputs with the `batch_size` parameter. Batch inference may improve speed, especially on a GPU, but it isn't guaranteed. Other variables such as hardware, data, and the model itself can affect whether batch inference improves speed. For this reason, batch inference is disabled by default."
+        },
+        {
+          "section": "Batch inference",
+          "line_start": 206,
+          "line_end": 211,
+          "exact_excerpt": "1. The only way to know for sure is to measure performance on your model, data, and hardware.\n2. Don't batch inference if you're constrained by latency (a live inference product for example).\n3. Don't batch inference if you're using a CPU.\n4. Don't batch inference if you don't know the `sequence_length` of your data. Measure performance, iteratively add to `sequence_length`, and include out-of-memory (OOM) checks to recover from failures.\n5. Do batch inference if your `sequence_length` is regular, and keep pushing it until you reach an OOM error. The larger the GPU, the more helpful batch inference is.\n6. Do make sure you can handle OOM errors if you decide to do batch inference."
+        }
+      ]
+    },
+    {
+      "id": "distractor_020",
+      "file": "perf_torch_compile.md",
+      "focus": "Distinguish strict single-graph compilation from permissive graph splitting.",
+      "trap": "The ordinary idea of graph splitting is incorrectly carried into strict fullgraph mode.",
+      "source_path": "data/documents/transformers-v4.57.1/perf_torch_compile.md",
+      "source_sha256": "d07b0ed8e6ac037b7bd9a27022c63876a15a1f71aab43f595c075de2c4240678",
+      "evidence": [
+        {
+          "section": "Fullgraph",
+          "line_start": 51,
+          "line_end": 51,
+          "exact_excerpt": "Fullgraph attempts to compile the entire model into a single graph to maximize performance. torch.compile raises an error if it encounters a graph break, which means it can't compile the model into a single graph."
+        }
+      ]
+    }
+  ]
+}

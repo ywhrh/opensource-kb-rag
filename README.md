@@ -66,6 +66,10 @@ CLI alternative:
 
 Local judge scoring can take substantial time and is model-dependent. Gold references are necessary for this evaluation; Live Run requires none.
 
+Evaluation now saves each answer immediately, then saves each individual RAGAS metric as it finishes, using atomic output-file replacement. Job progress names the current case and metric; history includes saved-answer, saved-score and fully-scored-case counts. Partial averages include their valid-case denominators, and failed metrics remain null with explicit errors. An individual metric may require multiple model calls before its checkpoint can be saved.
+
+Use **Resume an unfinished evaluation** in the RAGAS tab, or `.venv/bin/python evaluate_ragas.py --resume RUN_ID`. Resume skips saved answers and successful metrics, retries failed or interrupted work, and uses the original config/dataset snapshot. A changed index prevents resume to avoid mixing results. API restarts mark unfinished evaluations interrupted without discarding checkpoints. Only one evaluation runs at a time; recovery never starts scoring automatically.
+
 ## Independent load testing
 
 Provide a name, representative questions, user count, spawn rate and duration. `/retrieve` measures retrieval; `/query` measures complete retrieval plus generation. Load tests do not evaluate answer quality or write a Live Run record for each request. The output includes actual aggregate QPS, Locust P99 request latency, request/failure counts and SLA comparisons. Warm/cold model state and concurrent indexing/evaluation affect results; keep workloads comparable when comparing runs. Only one load-test process runs at a time.

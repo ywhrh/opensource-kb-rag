@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 import httpx
 import yaml
 
-from api.schemas import ConfigUpdate, RunRequest, EvaluationRequest, IngestRequest, LoadTestRequest
+from api.schemas import ConfigUpdate, RunRequest, EvaluationRequest, IngestRequest, LoadTestRequest, Credentials
 from core.config_loader import ROOT, load_config, revision, save_config, config_lock
 from core.history import folder
 from core.jobs import submit, get_job
@@ -148,9 +148,19 @@ def stream_query(request: RunRequest):
 @router.post('/evaluate')
 def evaluate(request: EvaluationRequest):
     config = snapshot(request)
-    from evaluate_ragas import run_ablation
     try:
+        from evaluate_ragas import run_ablation
         return submit('evaluation', lambda progress: {'run_ids': run_ablation(config, request.source_id, request.credentials, request.modes, progress)})
+    except Exception as exc:
+        raise bad_request(exc)
+
+
+@router.post('/evaluations/{identifier}/resume')
+def resume_saved_evaluation(identifier: str, credentials: Credentials):
+    try:
+        from evaluate_ragas import resume_inputs, resume_evaluation
+        resume_inputs(identifier)
+        return submit('evaluation', lambda progress: resume_evaluation(identifier, credentials, progress))
     except Exception as exc:
         raise bad_request(exc)
 

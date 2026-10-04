@@ -16,8 +16,14 @@ def recover_interrupted_jobs():
     for path in DIRECTORY.glob('*.yaml'):
         job = yaml.safe_load(path.read_text())
         if job.get('status') in {'PENDING', 'RUNNING'}:
-            job.update(status='INTERRUPTED', message='The API restarted before this job completed. Start a new job.')
+            job.update(status='INTERRUPTED', message='The API restarted. Resume saved evaluations from tuning history; restart other jobs.')
             atomic_yaml(path, job)
+    from core.history import folder
+    for path in folder('evaluation').glob('*_output.yaml'):
+        record = yaml.safe_load(path.read_text())
+        if record.get('kind') == 'evaluation' and record['results']['status'] in {'PENDING', 'RUNNING'}:
+            record['results']['status'] = 'INTERRUPTED'
+            atomic_yaml(path, record)
 
 
 def submit(kind, function):

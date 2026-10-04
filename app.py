@@ -122,6 +122,8 @@ def job_progress():
                 st.success(label)
             elif job["status"] in {"FAILED", "INTERRUPTED"}:
                 st.error(label)
+            elif job["status"] == "CANCELLED":
+                st.warning(label)
             else:
                 st.info(label)
         except (httpx.HTTPError, ValueError) as exc:
@@ -450,6 +452,13 @@ def compare_history(kind):
             if run["results"].get("error"):
                 st.error(run["results"]["error"])
             if kind == "evaluation":
+                progress = run["results"].get("evaluation_progress")
+                if progress:
+                    st.write(f"Answers saved: {progress['answered_cases']}/{progress['total_cases']} · Fully scored cases: {progress['fully_scored_cases']}/{progress['total_cases']} · Scores saved: {progress['saved_scores']}/{progress['total_metrics']} · Failed metrics: {progress['failed_metrics']}")
+                    st.json(progress)
+                if run["results"].get("evaluation_warning"):
+                    st.warning(run["results"]["evaluation_warning"])
+                st.write("Valid cases per metric", run["results"].get("metric_valid_case_counts", {}))
                 cases = run["results"].get("per_case", [])
                 if cases:
                     case = st.selectbox("Test case", cases, format_func=lambda row: row.get("query", str(row.get("case_id", ""))), key=f"case_{i}_{run['run_id']}")
@@ -485,6 +494,17 @@ with compare_tab:
         st.caption("Evaluations use the testing data source and run independently.")
         if st.button("Run evaluation", type="primary", disabled=not name.strip() or not modes):
             start_job("/evaluate", {**request_body(name, tuning_source), "modes": modes})
+        with st.expander("Resume an unfinished evaluation"):
+            unfinished = [run for run in saved_history("evaluation")
+                          if run["results"]["status"] in {"INTERRUPTED", "CANCELLED", "FAILED", "PARTIAL"}
+                          and run.get("dataset", {}).get("snapshot")]
+            st.caption("Uses the original dataset, configuration and index. Saved answers and successful scores are skipped; failed metrics are retried. Resumes one saved retrieval mode.")
+            if unfinished:
+                selected = st.selectbox("Evaluation to resume", unfinished, format_func=lambda run: run["experiment"]["name"] + " · " + run["run_id"], key="resume_evaluation")
+                if st.button("Resume evaluation"):
+                    start_job("/evaluations/" + selected["run_id"] + "/resume", credentials())
+            else:
+                st.info("No resumable evaluations.")
         st.button("Refresh evaluation history")
         compare_history("evaluation")
     with load_tab:

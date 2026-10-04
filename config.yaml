@@ -1,5 +1,5 @@
 experiment:
-  name: ''
+  name: test run
   description: ''
 ingestion_pipeline:
   cleaning:
