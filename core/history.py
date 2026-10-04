@@ -43,6 +43,8 @@ def persist(record, initial=False):
     directory = folder(record['kind'])
     identifier = record['run_id']
     if initial:
+        from core.experiment_cache import record_signature
+        record['configuration_signature'] = record_signature(record)
         input_record = {key: value for key, value in record.items() if key != 'results'}
         atomic_yaml(directory / f'{identifier}_input.yaml', input_record)
     atomic_yaml(directory / f'{identifier}_output.yaml', record)

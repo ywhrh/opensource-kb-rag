@@ -1,519 +1,447 @@
-"""Streamlit workspace backed by the local RAG API."""
-
+"""OpenKB-RAG Studio: cascading columns with disk-backed experiment leaves."""
 from copy import deepcopy
-from pathlib import Path
-import os
-import httpx
 import json
+import os
 
+import httpx
 import streamlit as st
 import yaml
 
-from core.config_loader import RAGConfig, load_config
+from core.config_loader import ROOT, RAGConfig, load_config, revision
+from core.experiment_cache import signature, find_runs, record_signature
 from core.secrets import load_keys, save_key
+from evaluation.golden_dataset_loader import load_dataset
 
-API_URL = os.getenv("RAG_API_URL", "http://127.0.0.1:8000")
+API = os.getenv('RAG_API_URL', 'http://127.0.0.1:8000')
+MODES = {'vector_only': 'Vector only', 'hybrid': 'Hybrid', 'hybrid_rerank': 'Hybrid + rerank'}
+CATEGORIES = {'evaluation': 'RAGAS · 60-question evaluation', 'live_run': 'Live question & answer', 'load_test': 'Independent load test'}
+ENUMS = {
+    'vector_search.index_type': ['HNSW', 'IVF_FLAT', 'IVF_SQ8'],
+    'vector_search.metric_type': ['COSINE', 'L2', 'IP'],
+    'vector_search.quantization.type': ['none', 'SQ8', 'BINARY'],
+    'bm25_search.tokenizer': ['standard'], 'hybrid_fusion.strategy': ['weighted_sum', 'RRF'],
+    'ingestion_pipeline.chunking.strategy': ['fixed_size', 'semantic', 'recursive'],
+    'ingestion_pipeline.chunking.semantic_config.breakpoint_threshold_type': ['percentile', 'standard_deviation', 'interquartile'],
+    'load_testing.endpoint': ['/retrieve', '/query'],
+}
+METRICS = ['context_recall', 'context_precision', 'faithfulness', 'answer_correctness']
+st.set_page_config(page_title='OpenKB-RAG Studio', page_icon='◈', layout='wide', initial_sidebar_state='collapsed')
+st.markdown('''<style>
+.block-container {max-width:1800px;padding:2.5rem 2rem 4rem;}
+h1 {font-size:2.3rem!important;font-weight:650!important;letter-spacing:-.07rem;}
+h3 {font-size:1.1rem!important;letter-spacing:-.02rem;}
+[data-testid="stVerticalBlockBorderWrapper"] {border-radius:18px;}
+[data-testid="stMetric"] {background:#f5f5f7;border-radius:14px;padding:.9rem;margin-bottom:.6rem;}
+[data-testid="stExpander"] {border-radius:12px;}
+@keyframes revealBranch {from {opacity:0;transform:translateX(16px);} to {opacity:1;transform:translateX(0);}}
+[data-testid="stColumn"] {animation:revealBranch .3s ease-out;}
+@media (prefers-reduced-motion:reduce) {[data-testid="stColumn"] {animation:none;}}
+.eyebrow {font-size:.7rem;letter-spacing:.16em;color:#86868b;}
+</style>''', unsafe_allow_html=True)
+
 
 def api(method, path, **kwargs):
-    response = httpx.request(method, API_URL + path, timeout=30, **kwargs)
+    response = httpx.request(method, API + path, timeout=30, **kwargs)
     if response.is_error:
-        detail = response.json().get("detail", "Request failed")
-        raise ValueError(str(detail))
+        raise ValueError(str(response.json().get('detail', 'Request failed')))
     return response.json()
 
-ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = ROOT / "config.yaml"
-MODE_LABELS = {
-    "vector_only": "Vector only",
-    "hybrid": "Hybrid",
-    "hybrid_rerank": "Hybrid + rerank",
-}
 
-st.set_page_config(page_title="RAG Ablation Studio", page_icon="◈", layout="wide")
-st.markdown("""
-<style>
-.block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1150px;}
-[data-testid="stSidebar"] {background: #fff; border-right: 1px solid #e8eaf0;}
-[data-testid="stSidebar"] .block-container {padding-top: 1.6rem;}
-h1 {font-size: 2.35rem !important; letter-spacing: -.075rem; font-weight: 650 !important;}
-h2 {font-size: 1.4rem !important; letter-spacing: -.035rem;}
-h3 {font-size: 1.08rem !important;}
-[data-testid="stVerticalBlockBorderWrapper"] {background: #fff; border-radius: 16px;}
-[data-testid="stMetricValue"] {font-size: 1.9rem; letter-spacing: -.045rem;}
-[data-testid="stTabs"] [role="tablist"] {gap: 2rem; margin-bottom: 1rem;}
-[data-testid="stTabs"] [role="tab"] {padding-bottom: .85rem; font-weight: 550;}
-.eyebrow {color: #79818e; font-size: .7rem; letter-spacing: .14em; font-weight: 650; margin-bottom: .4rem;}
-.muted {color: #79818e; font-size: .9rem;}
-.status {display: inline-block; background: #eef4ff; color: #3561a0; font-size: .75rem;
-    border: 1px solid #dce8fb; border-radius: 100px; padding: .35rem .75rem;}
-.step {color: #79818e; font-size: .7rem; font-weight: 650; letter-spacing: .12em; margin-top: 1.1rem; margin-bottom: .55rem;}
-.empty {text-align: center; padding: 2rem 1rem; color: #7e8693;}
-.empty strong {display: block; color: #353b46; font-size: 1rem; margin-bottom: .5rem;}
-button[kind="primary"] {border-radius: 10px;}
-</style>
-""", unsafe_allow_html=True)
-
-# Detach reusable widget values from page cleanup when navigating to results.
-for state_key in list(st.session_state):
-    if state_key.startswith(("control_", "paid_")) or state_key in {"openai_key", "cohere_key", "query", "data_source"}:
-        st.session_state[state_key] = st.session_state[state_key]
-st.session_state.setdefault("live_page", "configuration")
-
-if "config_revision" not in st.session_state:
-    try:
-        initial = api("GET", "/config")
-        st.session_state.config = initial["config"]
-        st.session_state.config_revision = initial["revision"]
-    except (httpx.HTTPError, ValueError) as exc:
-        st.error(f"Start the local API before opening this workspace: {exc}")
-        st.stop()
+if 'tree_config' not in st.session_state:
+    st.session_state.tree_config = load_config().model_dump()
+    st.session_state.tree_revision = revision()
+    st.session_state.tree_keys = load_keys()
+for key in list(st.session_state):
+    if key.startswith(('node', 'key_')) or key in {'live_question', 'live_source_mode'}:
+        st.session_state[key] = st.session_state[key]
+for provider in ['openai', 'cohere']:
+    st.session_state.setdefault('key_' + provider, st.session_state.tree_keys.get(provider, ''))
+if 'progressive_workspace_version' not in st.session_state:
+    st.session_state.progressive_workspace_version = 1
+    st.session_state.start_ready = False
+    st.session_state.branch_ready = False
+    st.session_state.leaf_ready = False
 
 
-try:
-    saved_keys = load_keys()
-except (OSError, ValueError):
-    st.error("Unable to read the local API key file. Check .secrets/api_keys.json.")
-    st.stop()
-for provider in ("openai", "cohere"):
-    st.session_state.setdefault(provider + "_key", saved_keys.get(provider, ""))
+def reset_from(level):
+    for key in list(st.session_state):
+        if any(key.startswith(f'node{n}_') for n in range(level, 4)):
+            del st.session_state[key]
+    if level <= 1:
+        st.session_state.start_ready = False
+    if level <= 2:
+        st.session_state.branch_ready = False
+    st.session_state.leaf_ready = False
+    st.session_state.pop('tree_run', None)
+    st.session_state.pop('leaf_record', None)
 
 
-def save_api_key(provider):
-    try:
-        save_key(provider, st.session_state[provider + "_key"])
-        st.session_state.key_save_error = None
-    except (OSError, ValueError):
-        st.session_state.key_save_error = "Unable to save the local API key file. The change was not saved."
-        st.session_state[provider + "_key"] = saved_keys.get(provider, "")
+def root_changed():
+    reset_from(1)
 
 
-def credentials():
-    return {"openai_api_key": st.session_state.get("openai_key", ""),
-            "cohere_api_key": st.session_state.get("cohere_key", "")}
-
-
-def selected_source():
-    return st.session_state.get("upload_source", "project") if st.session_state.get("data_source") == "Upload documents" else "project"
-
-
-def request_body(name=None, source=None):
-    config = deepcopy(st.session_state.config)
-    if name is not None:
-        config["experiment"]["name"] = name
-    return {"config_snapshot": config, "source_id": source or selected_source(), "credentials": credentials()}
-
-
-def start_job(endpoint, payload):
-    try:
-        job = api("POST", endpoint, json=payload)
-        st.session_state.setdefault("active_jobs", {})[job["job_id"]] = job
-    except (httpx.HTTPError, ValueError) as exc:
-        st.error(str(exc))
-
-
-@st.fragment(run_every=2)
-def job_progress():
-    for identifier in list(st.session_state.get("active_jobs", {})):
-        try:
-            job = api("GET", "/jobs/" + identifier)
-            st.session_state.active_jobs[identifier] = job
-            label = f"{job['kind']}: {job['status']} — {job['message']}"
-            if job["status"] == "SUCCESS":
-                st.success(label)
-            elif job["status"] in {"FAILED", "INTERRUPTED"}:
-                st.error(label)
-            elif job["status"] == "CANCELLED":
-                st.warning(label)
-            else:
-                st.info(label)
-        except (httpx.HTTPError, ValueError) as exc:
-            st.warning(str(exc))
-    if st.session_state.get("active_jobs") and st.button("Dismiss completed jobs"):
-        st.session_state.active_jobs = {k: v for k, v in st.session_state.active_jobs.items() if v["status"] in {"PENDING", "RUNNING"}}
-        st.rerun()
-
-
-def nested_get(config, path):
-    for part in path.split("."):
+def get_value(config, path):
+    for part in path.split('.'):
         config = config[part]
     return config
 
 
-def save_control(key, path):
-    """Persist a validated control change atomically; credentials use a separate local file."""
-    config = deepcopy(st.session_state.config)
-    parts = path.split(".")
-    section = config
+def changed(path, level):
+    config = deepcopy(st.session_state.tree_config)
+    parts = path.split('.')
+    target = config
     for part in parts[:-1]:
-        section = section[part]
-    section[parts[-1]] = st.session_state[key]
-    mode = config["retrieval_pipeline"]["mode"]
-    config["bm25_search"]["enabled"] = mode != "vector_only"
-    config["rerank"]["enabled"] = mode == "hybrid_rerank"
-    weight = config["hybrid_fusion"]["weights"]["vector_weight"]
-    config["hybrid_fusion"]["weights"]["bm25_weight"] = round(1 - weight, 2)
-    config["generation"]["provider"] = (
-        "openai" if config["generation"]["llm_model"] == "gpt-4o-mini" else "ollama"
-    )
-    vector = config["vector_search"]
-    if not 0 <= weight <= 1 or not 1 <= vector["top_k"] <= 100:
-        st.session_state.save_error = "Invalid retrieval configuration. Changes were not saved."
-        return
-    # Keep HNSW's search candidate count at least as large as the requested Top-K.
-    vector["hnsw_params"]["ef"] = max(vector["hnsw_params"]["ef"], vector["top_k"])
-    if path in {"vector_search.top_k", "vector_search.hnsw_params.ef"}:
-        st.session_state["control_vector_search.hnsw_params.ef"] = vector["hnsw_params"]["ef"]
+        target = target[part]
+    target[parts[-1]] = st.session_state[f'node{level}_{path}']
+    config['vector_search']['hnsw_params']['ef'] = max(config['vector_search']['hnsw_params']['ef'], config['vector_search']['top_k'])
+    weight = config['hybrid_fusion']['weights']['vector_weight']
+    config['hybrid_fusion']['weights']['bm25_weight'] = round(1-weight, 6)
     try:
         validated = RAGConfig.model_validate(config).model_dump()
-        result = api("PUT", "/config", json={"config": validated, "expected_revision": st.session_state.config_revision})
-        st.session_state.config = result["config"]
-        st.session_state.config_revision = result["revision"]
-        st.session_state.save_error = None
+        result = api('PUT', '/config', json={'config': validated, 'expected_revision': st.session_state.tree_revision})
+        st.session_state.tree_config = result['config']
+        st.session_state.tree_revision = result['revision']
+        reset_from(level + 1)
+        # Derived HNSW ef must also update its existing widget.
+        if path == 'vector_search.top_k':
+            st.session_state.pop('node2_vector_search.hnsw_params.ef', None)
+        st.session_state.pop('tree_error', None)
     except (ValueError, httpx.HTTPError) as exc:
-        st.session_state.save_error = str(exc)
-        st.session_state[key] = nested_get(st.session_state.config, path)
+        st.session_state.tree_error = str(exc)
+        st.session_state[f'node{level}_{path}'] = get_value(st.session_state.tree_config, path)
 
 
-def control(widget, label, path, **kwargs):
-    key = f"control_{path}"
-    st.session_state.setdefault(key, nested_get(st.session_state.config, path))
-    if kwargs.get("disabled"):
-        st.session_state[key] = nested_get(st.session_state.config, path)
-    return widget(label, key=key, on_change=save_control, args=(key, path), **kwargs)
+def control(path, label, level=2, options=None, **kwargs):
+    key = f'node{level}_{path}'
+    st.session_state.setdefault(key, get_value(st.session_state.tree_config, path))
+    args = dict(key=key, on_change=changed, args=(path, level), **kwargs)
+    value = st.session_state[key]
+    if options:
+        return st.selectbox(label, options, **args)
+    if isinstance(value, bool):
+        return st.toggle(label, **args)
+    if isinstance(value, (int, float)):
+        return st.number_input(label, **args)
+    if isinstance(value, list):
+        return st.multiselect(label, list(dict.fromkeys(METRICS + value)) if path == 'evaluation.metrics' else value, **args)
+    return st.text_input(label, **args)
 
 
-def model_control(label, path, local_models, paid_model, credential):
-    """Expose a disabled paid-model switch until the matching credential is present."""
-    paid_key = f"paid_{path}"
-    authorized = bool(st.session_state.get(credential, "").strip() or os.getenv({"openai_key": "OPENAI_API_KEY", "cohere_key": "COHERE_API_KEY"}[credential], "").strip())
-    if not authorized:
-        st.session_state[paid_key] = False
-        if nested_get(st.session_state.config, path) == paid_model:
-            key = f"control_{path}"
-            st.session_state[key] = local_models[0]
-            save_control(key, path)
-    use_paid = st.checkbox(f"Use {paid_model}", key=paid_key, disabled=not authorized,
-                           help="Enter the provider API key below to enable this option.")
-    options = local_models + ([paid_model] if use_paid and authorized else [])
-    key = f"control_{path}"
-    if st.session_state.get(key, nested_get(st.session_state.config, path)) not in options:
-        st.session_state[key] = options[0]
-        save_control(key, path)
-    return control(st.selectbox, label, path, options=options)
-
-
-def empty(title, message):
-    # Only constant developer-authored strings are passed into this HTML helper.
-    st.markdown(f'<div class="empty"><strong>{title}</strong>{message}</div>', unsafe_allow_html=True)
-
-
-def show_evidence(run):
-    with st.container(border=True):
-        st.subheader("Output Evidence")
-        chunks = run["results"].get("evidence_chunks", []) if run else []
-        if not chunks:
-            empty("No evidence yet", "Inspect source text, metadata and retrieval scores here.")
-        for index, chunk in enumerate(chunks, 1):
-            score = chunk.get("score")
-            score_label = f" · Score {score:.2f}" if isinstance(score, (int, float)) else ""
-            with st.expander(f"[{index}] {chunk.get('section_title', 'Untitled section')}{score_label}", expanded=index == 1):
-                st.caption(f"Document: {chunk.get('doc_id', '—')} · Chunk: {chunk.get('chunk_id', '—')}")
-                metadata = chunk.get("metadata", {})
-                if metadata:
-                    st.caption("  ·  ".join(f"{key}: {value}" for key, value in metadata.items()))
-                st.markdown(chunk.get("text", ""))
-
-
-# Enumerated controls use explicit choices; numeric fields remain directly editable.
-ENUMS = {
-    "retrieval_pipeline.mode": list(MODE_LABELS),
-    "vector_search.index_type": ["HNSW", "IVF_FLAT", "IVF_SQ8"],
-    "vector_search.metric_type": ["COSINE", "L2", "IP"],
-    "vector_search.quantization.type": ["none", "SQ8", "BINARY"],
-    "bm25_search.tokenizer": ["standard"],
-    "hybrid_fusion.strategy": ["weighted_sum", "RRF"],
-    "ingestion_pipeline.chunking.strategy": ["fixed_size", "semantic", "recursive"],
-    "ingestion_pipeline.chunking.semantic_config.breakpoint_threshold_type": ["percentile", "standard_deviation", "interquartile"],
-    "load_testing.tool": ["locust"],
-    "load_testing.endpoint": ["/retrieve", "/query"],
-}
-LIST_OPTIONS = {
-    "ingestion_pipeline.cleaning.language_filter": ["en"],
-    "ingestion_pipeline.metadata_enrichment.entity_types": ["API", "VERSION", "CODE"],
-    "evaluation.metrics": ["context_recall", "context_precision", "faithfulness", "answer_correctness"],
-}
-MODEL_PATHS = {"vector_search.model_name", "bm25_search.model_name", "rerank.model_name", "generation.llm_model", "generation.provider", "evaluation.judge_model"}
-
-
-def parameter_fields(mapping, prefix):
+def advanced(mapping, prefix):
     for field, value in mapping.items():
-        path = f"{prefix}.{field}"
-        if path in MODEL_PATHS:
+        path = prefix + '.' + field
+        if path in {'generation.provider', 'vector_search.enabled', 'bm25_search.enabled', 'rerank.enabled', 'hybrid_fusion.weights.bm25_weight'}:
             continue
-        label = field.replace("_", " ").replace("efConstruction", "ef construction").capitalize()
         if isinstance(value, dict):
-            st.markdown(f"**{label}**")
-            parameter_fields(value, path)
-        elif path in ENUMS:
-            control(st.selectbox, label, path, options=ENUMS[path])
-        elif isinstance(value, bool):
-            derived = path in {"bm25_search.enabled", "rerank.enabled", "vector_search.enabled"}
-            control(st.toggle, label, path, disabled=derived,
-                    help="Determined by the selected retrieval mode." if derived else None)
-        elif isinstance(value, (int, float)):
-            is_float = isinstance(value, float)
-            kwargs = {"min_value": 0.0 if is_float else 0, "step": 0.05 if is_float else 1}
-            if field in {"top_k", "top_n", "batch_size", "chunk_size", "max_tokens", "min_chunk_length", "max_chunk_length", "ef", "efConstruction"}:
-                kwargs["min_value"] = 1
-            if field == "top_k":
-                kwargs["max_value"] = 100
-            if "weight" in field or field == "min_context_recall":
-                kwargs["max_value"] = 1.0
-            control(st.number_input, label, path, disabled=path == "hybrid_fusion.weights.bm25_weight", **kwargs)
-        elif isinstance(value, list):
-            options = list(dict.fromkeys([*LIST_OPTIONS.get(path, []), *value]))
-            control(st.multiselect, label, path, options=options)
+            st.markdown('**' + field.replace('_', ' ').title() + '**')
+            advanced(value, path)
         else:
-            control(st.text_input, label, path)
+            control(path, field.replace('_', ' ').title(), options=ENUMS.get(path))
 
 
-def show_parameters():
-    with st.container(height=420, border=True):
-        st.subheader("Input parameters")
-        st.caption("Choose options, enter numeric values, and toggle pipeline features.")
-        mode = control(st.selectbox, "Retrieval mode", "retrieval_pipeline.mode",
-                       options=list(MODE_LABELS), format_func=MODE_LABELS.get)
-        columns = st.columns(3)
-        with columns[0]:
-            control(st.number_input, "Vector Top-K", "vector_search.top_k", min_value=1, max_value=100)
-        with columns[1]:
-            control(st.number_input, "BM25 Top-K", "bm25_search.top_k", min_value=1, max_value=100, disabled=mode == "vector_only")
-        with columns[2]:
-            control(st.number_input, "Rerank Top-N", "rerank.top_n", min_value=1, max_value=200, disabled=mode != "hybrid_rerank")
-        with st.expander("Models & API credentials"):
-            st.text_input("OpenAI API key", type="password", key="openai_key", on_change=save_api_key, args=("openai",))
-            st.text_input("Cohere API key", type="password", key="cohere_key", on_change=save_api_key, args=("cohere",))
-            st.caption("Keys are saved in .secrets/api_keys.json (Git-ignored) and excluded from configuration and snapshots.")
-            if st.session_state.get("key_save_error"):
-                st.error(st.session_state.key_save_error)
-            model_control("Embedding model", "vector_search.model_name", ["BAAI/bge-large-en-v1.5", "BAAI/bge-m3"], "text-embedding-3-small", "openai_key")
-            control(st.selectbox, "Keyword search model", "bm25_search.model_name", options=["BM25Okapi", "Milvus Built-in Sparse BM25"])
-            model_control("Reranker", "rerank.model_name", ["bge-reranker-base"], "Cohere Rerank v3", "cohere_key")
-            model_control("Answer model", "generation.llm_model", ["llama3.1:8b"], "gpt-4o-mini", "openai_key")
-        sections = [
-            ("Retrieval, fusion & index settings", ["vector_search", "bm25_search", "hybrid_fusion", "rerank"]),
-            ("Ingestion & metadata", ["ingestion_pipeline"]),
-            ("Generation", ["generation"]),
-        ]
-        for title, keys in sections:
-            with st.expander(title):
-                for section in keys:
-                    mapping = deepcopy(st.session_state.config[section])
-                    if section in {"vector_search", "bm25_search"}:
-                        mapping.pop("top_k", None)
-                    if section == "rerank":
-                        mapping.pop("top_n", None)
-                    st.markdown(f"**{section.replace('_', ' ').title()}**")
-                    parameter_fields(mapping, section)
-        st.caption("Index and embedding changes require rebuilding a compatible index. Build the index after changing ingestion, embedding or index settings.")
+def credentials():
+    return {provider + '_api_key': st.session_state['key_' + provider] for provider in ['openai', 'cohere']}
 
 
-def open_result():
-    payload = request_body()
-    payload["query"] = st.session_state.get("query", "")
-    st.session_state.pending_run = payload
-    st.session_state.live_page = "results"
-    st.session_state.pop("live_result", None)
+def save_credential(provider):
+    try:
+        save_key(provider, st.session_state['key_' + provider])
+    except (OSError, ValueError):
+        st.session_state.tree_error = 'Unable to save the separate API key file.'
 
 
-def configuration_page():
+def enqueue(endpoint, payload, wanted=None):
+    try:
+        job = api('POST', endpoint, json=payload)
+        st.session_state.setdefault('tree_jobs', {})[job['job_id']] = {**job, 'signature': wanted}
+        st.rerun()
+    except (ValueError, httpx.HTTPError) as exc:
+        st.error(str(exc))
+
+
+def render_result(run, prefix):
+    results = run['results']
+    st.caption(run['experiment']['name'] + ' · ' + results['status'])
+    if run['kind'] == 'evaluation':
+        progress = results.get('evaluation_progress', {})
+        st.caption(f"Saved scores: {progress.get('saved_scores', 0)}/{progress.get('total_metrics', 0)}")
+        for key, value in results.get('algorithm_metrics', {}).items():
+            st.metric(key.replace('_', ' ').title(), f'{value:.3f}' if value is not None else '—')
+            st.caption(f"Valid cases: {results.get('metric_valid_case_counts', {}).get(key, 0)}/{len(results.get('per_case', []))}")
+    if run['kind'] == 'load_test':
+        for key in ['actual_qps', 'total_requests', 'failed_requests']:
+            value = (results.get('load_test_metrics') or {}).get(key)
+            st.metric(key.replace('_', ' ').title(), value if value is not None else '—')
+    p99 = (results.get('load_test_metrics') or {}).get('actual_p99_latency_ms')
+    st.metric('Measured P99 latency', f'{p99:.1f} ms' if p99 is not None else 'Not measured')
+    if p99 is None:
+        st.caption('P99 requires an independent load test; RAGAS does not measure it.')
+    if results.get('evaluation_warning'):
+        st.warning(results['evaluation_warning'])
+    if results.get('error'):
+        st.error(results['error'])
+    case = results
+    if run['kind'] == 'evaluation' and results.get('per_case'):
+        cases = {c['case_id']: c for c in results['per_case']}
+        if st.session_state.get(prefix + '_case') not in cases:
+            st.session_state.pop(prefix + '_case', None)
+        selected = st.selectbox('Inspect a question', list(cases), key=prefix + '_case')
+        case = cases[selected]
+        st.write(case['query'])
+        with st.expander('Reference answer'):
+            st.write(case.get('reference_answer'))
+    elif run['kind'] == 'live_run':
+        st.write(run.get('query'))
+    if case.get('answer'):
+        st.markdown('**LLM answer**')
+        st.write(case['answer'])
+    for i, chunk in enumerate(case.get('evidence_chunks', []), 1):
+        with st.expander(f"Evidence {i} · {chunk.get('section_title', 'Source')}"):
+            st.caption(chunk.get('metadata', {}).get('source', ''))
+            st.write(chunk['text'])
+    with st.expander('📂 展开查看/折叠历史实验配置'):
+        st.json({k: v for k, v in run.items() if k != 'results'}, expanded=False)
+        st.json(results, expanded=False)
+        st.download_button('Download output JSON', json.dumps(run, ensure_ascii=False, indent=2), run['run_id'] + '.json', 'application/json', key=prefix + '_download')
+
+
+@st.fragment(run_every=3)
+def job_progress():
+    for identifier, saved in list(st.session_state.get('tree_jobs', {}).items()):
+        try:
+            job = api('GET', '/jobs/' + identifier)
+            st.session_state.tree_jobs[identifier] = {**job, 'signature': saved.get('signature')}
+            st.caption(job['kind'] + ' · ' + job['status'] + ' · ' + job['message'])
+            if saved['status'] in {'PENDING', 'RUNNING'} and job['status'] not in {'PENDING', 'RUNNING'}:
+                st.rerun()
+        except (ValueError, httpx.HTTPError) as exc:
+            st.warning(str(exc))
+
+def live_workspace():
+    st.subheader('Live Run Workspace')
+    job_progress()
+    if st.session_state.get('live_workspace_page', 'input') == 'input':
+        with st.container(border=True):
+            control('experiment.name', 'Experiment name', level=0)
+            control('experiment.description', 'Experiment description (optional)', level=0)
+            with st.container(height=430, border=True):
+                st.subheader('Input parameters')
+                mode = control('retrieval_pipeline.mode', 'Retrieval mode', level=1, options=list(MODES), format_func=MODES.get)
+                control('vector_search.model_name', 'Embedding model', level=1, options=['BAAI/bge-m3', 'BAAI/bge-large-en-v1.5', 'text-embedding-3-small'])
+                control('generation.llm_model', 'Answer model', level=1, options=['llama3.1:8b', 'gpt-4o-mini'])
+                control('vector_search.top_k', 'Vector Top-K', min_value=1, max_value=1000)
+                if mode != 'vector_only':
+                    control('bm25_search.model_name', 'BM25 engine', level=1, options=['BM25Okapi', 'Milvus Built-in Sparse BM25'])
+                    control('bm25_search.top_k', 'BM25 Top-K', min_value=1, max_value=1000)
+                if mode == 'hybrid_rerank':
+                    control('rerank.model_name', 'Reranker', level=1, options=['bge-reranker-base', 'Cohere Rerank v3'])
+                    control('rerank.top_n', 'Rerank Top-N', min_value=1, max_value=2000)
+                with st.expander('Advanced input parameters'):
+                    for section in ['vector_search', 'hybrid_fusion', 'ingestion_pipeline', 'generation']:
+                        mapping = deepcopy(st.session_state.tree_config[section])
+                        for field in {'vector_search': ['top_k', 'model_name'], 'generation': ['llm_model']}.get(section, []):
+                            mapping.pop(field, None)
+                        advanced(mapping, section)
+                with st.expander('API credentials'):
+                    for provider in ['openai', 'cohere']:
+                        st.text_input(provider.title() + ' API key', type='password', key='key_' + provider, on_change=save_credential, args=(provider,))
+                    st.caption('Saved separately in Git-ignored .secrets/api_keys.json.')
+            source_mode = st.selectbox('Data source', ['Project default', 'Upload documents'], key='live_source_mode')
+            live_source = 'project'
+            if source_mode == 'Upload documents':
+                files = st.file_uploader('Upload documents', type=['pdf', 'md', 'txt', 'html', 'docx'], accept_multiple_files=True, key='live_upload')
+                if st.button('Save uploaded documents', disabled=not files):
+                    try:
+                        response = api('POST', '/documents', files=[('files', (f.name, f.getvalue(), f.type)) for f in files])
+                        st.session_state.live_uploaded_source = response['source_id']
+                        st.success('Documents saved. Build their index before running.')
+                    except (ValueError, httpx.HTTPError) as exc:
+                        st.error(str(exc))
+                live_source = st.session_state.get('live_uploaded_source')
+            else:
+                st.caption('Project documents: data/documents')
+            if st.button('Build / update document index', disabled=not live_source):
+                enqueue('/ingest', {'config_snapshot': st.session_state.tree_config, 'source_id': live_source, 'credentials': credentials()})
+            question = st.text_area('Question about the data source', key='live_question', height=100)
+            if st.button('Run', type='primary', use_container_width=True, disabled=not live_source or not question.strip() or not st.session_state.tree_config['experiment']['name'].strip()):
+                st.session_state.live_pending = {'config_snapshot': deepcopy(st.session_state.tree_config), 'source_id': live_source, 'query': question.strip(), 'credentials': credentials()}
+                st.session_state.live_workspace_page = 'result'
+                st.session_state.pop('live_output', None)
+                st.rerun()
+        return
+    if st.button('← Back to experiment setup'):
+        st.session_state.live_workspace_page = 'input'
+        st.rerun()
+    pending = st.session_state.pop('live_pending', None)
+    if pending:
+        st.subheader(pending['config_snapshot']['experiment']['name'])
+        with st.container(border=True):
+            st.markdown('**Question**')
+            st.write(pending['query'])
+            st.markdown('**RAG answer**')
+            answer_slot = st.empty()
+            status_slot = st.empty()
+            answer = ''
+            try:
+                with httpx.stream('POST', API + '/query/stream', json=pending, timeout=httpx.Timeout(600, connect=10)) as response:
+                    if response.is_error:
+                        response.read()
+                        raise ValueError(str(response.json().get('detail', 'Live run failed')))
+                    for line in response.iter_lines():
+                        if not line:
+                            continue
+                        event = json.loads(line)
+                        if event['type'] == 'token':
+                            answer += event['text']
+                            answer_slot.markdown(answer)
+                        elif event['type'] == 'status':
+                            status_slot.caption(event['message'])
+                        elif event['type'] == 'result':
+                            st.session_state.live_output = event['output']
+                status_slot.empty()
+            except (ValueError, httpx.HTTPError) as exc:
+                st.error(str(exc))
+    run = st.session_state.get('live_output')
+    if not run:
+        return
+    if not pending:
+        st.subheader(run['experiment']['name'])
+        with st.container(border=True):
+            st.markdown('**Question**')
+            st.write(run['query'])
+            st.markdown('**RAG answer**')
+            st.write(run['results'].get('answer'))
+    if run['results'].get('error'):
+        st.error(run['results']['error'])
     with st.container(border=True):
-        st.subheader("Live Run Workspace")
-        st.caption("Configure an experiment for your documentation knowledge base.")
-        control(st.text_input, "Experiment name", "experiment.name", placeholder="e.g. hybrid_rerank_v1")
-        control(st.text_area, "Experiment description (optional)", "experiment.description", height=80)
-        show_parameters()
-        source = st.selectbox("Data source", ["Project default", "Upload documents"], key="data_source")
-        if source == "Upload documents":
-            files = st.file_uploader("Upload documents", type=["pdf", "md", "txt", "docx", "html"], accept_multiple_files=True)
-            if st.button("Save uploaded documents", disabled=not files):
+        st.subheader('Output evidence')
+        chunks = run['results'].get('evidence_chunks', [])
+        if not chunks:
+            st.caption('No evidence found.')
+        for i, chunk in enumerate(chunks, 1):
+            with st.expander(f"[{i}] {chunk.get('section_title', 'Source')}", expanded=i == 1):
+                st.caption(chunk.get('metadata', {}).get('source', ''))
+                st.write(chunk['text'])
+    display = deepcopy(run)
+    for field in ['algorithm_metrics', 'load_test_metrics', 'sla_compliance']:
+        display['results'].pop(field, None)
+    input_snapshot = {k: v for k, v in display.items() if k != 'results'}
+    for col, title, payload, suffix in zip(st.columns(2), ['Input Config JSON', 'Output JSON'], [input_snapshot, display], ['input', 'output']):
+        with col, st.container(border=True):
+            st.subheader(title)
+            st.json(payload, expanded=False)
+            st.download_button('Download ' + title, json.dumps(payload, ensure_ascii=False, indent=2), run['run_id'] + '_' + suffix + '.json', 'application/json', key='live_download_' + suffix)
+
+
+st.markdown('<div class="eyebrow">OPEN-SOURCE DOCUMENTATION · EXPERIMENT WORKSPACE</div>', unsafe_allow_html=True)
+st.title('OpenKB-RAG Studio')
+page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation'], horizontal=True, key='workspace_page', label_visibility='collapsed')
+if page == 'Live Run':
+    live_workspace()
+    st.stop()
+if st.button('Refresh saved results'):
+    st.rerun()
+
+
+# History inputs supply node options; no live configuration changes occur here.
+history_runs = []
+for output_path in sorted((ROOT / 'data/experiments_history').glob('*_output.yaml'), reverse=True):
+    input_path = output_path.with_name(output_path.name.replace('_output.yaml', '_input.yaml'))
+    if not input_path.exists():
+        continue
+    try:
+        saved = yaml.safe_load(input_path.read_text())
+        if saved['kind'] == 'evaluation' and saved['source_id'] == 'project' and len(saved.get('dataset', {}).get('snapshot', [])) == 60:
+            history_runs.append(saved)
+    except (OSError, yaml.YAMLError, KeyError, TypeError, AttributeError):
+        continue
+if not history_runs:
+    st.info('No paired 60-question project experiment configurations found.')
+    st.stop()
+
+from grouped_workspace import grouped_workspace
+completed_paths = grouped_workspace(history_runs)
+
+
+def execute_branch(item):
+    config = RAGConfig.model_validate(item['config'])
+    from ingestion.vector_store_writer import require_index
+    current_index = require_index(config, item['source'])
+    if current_index['collection_name'] != item['manifest']['collection_name']:
+        raise ValueError('This branch index changed. Create a new branch before running.')
+    if item['kind'] == 'evaluation':
+        _, current_hash = load_dataset(config.evaluation.dataset_path)
+        if current_hash != item['dataset']['sha256']:
+            raise ValueError('This branch dataset changed. Create a new branch before running.')
+    needs_openai = config.vector_search.model_name == 'text-embedding-3-small' or config.generation.llm_model == 'gpt-4o-mini' or (item['kind'] == 'evaluation' and config.evaluation.judge_model == 'gpt-4o-mini')
+    if needs_openai and not credentials()['openai_api_key'] and not os.getenv('OPENAI_API_KEY'):
+        raise ValueError('Enter an OpenAI key in Start before running.')
+    if config.rerank.enabled and config.rerank.model_name == 'Cohere Rerank v3' and not credentials()['cohere_api_key'] and not os.getenv('COHERE_API_KEY'):
+        raise ValueError('Enter a Cohere key in Start before running.')
+    if not config.experiment.name.strip():
+        raise ValueError('Enter an experiment name in Start before running.')
+    payload = {'config_snapshot': config.model_dump(), 'source_id': item['source'], 'credentials': credentials()}
+    if item['kind'] == 'evaluation':
+        enqueue('/evaluate', {**payload, 'modes': [config.retrieval_pipeline.mode]}, item['signature'])
+    elif item['kind'] == 'load_test':
+        enqueue('/load-tests', {**payload, 'queries': item['queries']}, item['signature'])
+    else:
+        api('POST', '/query', json={**payload, 'query': item['query'], 'index_collection': item['manifest']['collection_name']})
+        st.rerun()
+
+
+def branch_card(item, prefix):
+    hits, corrupt = find_runs(item['signature'], item['kind'])
+    if corrupt:
+        st.warning(f'{len(corrupt)} unreadable history pairs skipped.')
+    if hits:
+        ids = [r['run_id'] for r in hits]
+        record_key = prefix + '_record'
+        if st.session_state.get(record_key) not in ids:
+            st.session_state.pop(record_key, None)
+            if item.get('preferred_run') in ids:
+                st.session_state[record_key] = item['preferred_run']
+        chosen = st.selectbox('Saved matching run', ids, key=record_key)
+        run = next(r for r in hits if r['run_id'] == chosen)
+        st.success('Cache hit · Paired YAML snapshots')
+        render_result(run, prefix)
+        if run['results']['status'] in {'PARTIAL', 'FAILED', 'INTERRUPTED', 'CANCELLED'} and item['kind'] == 'evaluation':
+            if st.button('Resume missing scores', key=prefix + '_resume'):
                 try:
-                    result = api("POST", "/documents", files=[("files", (file.name, file.getvalue(), file.type)) for file in files])
-                    st.session_state.upload_source = result["source_id"]
-                    st.success("Saved: " + ", ".join(result["documents"]))
+                    enqueue('/evaluations/' + run['run_id'] + '/resume', credentials(), item['signature'])
                 except (ValueError, httpx.HTTPError) as exc:
                     st.error(str(exc))
-            st.caption("Source: " + st.session_state.get("upload_source", "Save documents first"))
-        else:
-            st.caption("Place project documentation in data/documents, then build its index.")
-        if st.button("Build / update document index", disabled=source == "Upload documents" and not st.session_state.get("upload_source")):
-            start_job("/ingest", request_body())
-        st.text_area("Question", key="query", height=95, placeholder="Enter a question about the selected data source.")
-        st.button("Run", type="primary", width="stretch", on_click=open_result,
-                  disabled=not (st.session_state.config["experiment"]["name"].strip() and st.session_state.get("query", "").strip()) or bool(st.session_state.get("save_error")))
-        if st.session_state.get("save_error"):
-            st.error(st.session_state.save_error)
-        else:
-            st.caption("● Parameter changes validated and saved to config.yaml")
-
-
-def json_pair(run, live=False, prefix="live"):
-    output = deepcopy(run)
-    if live:
-        for key in ["algorithm_metrics", "load_test_metrics", "sla_compliance"]:
-            output["results"].pop(key, None)
-    input_record = {key: value for key, value in output.items() if key != "results"}
-    for column, title, payload, suffix in zip(st.columns(2), ["Input Config JSON", "Output JSON"], [input_record, output], ["input", "output"]):
-        with column.container(border=True):
-            st.subheader(title)
-            text = json.dumps(payload, indent=2, ensure_ascii=False)
-            st.code(text, language="json", height=350)
-            st.download_button("Download " + title, text, f"{run['run_id']}_{suffix}.json", "application/json", key=f"download_{run['run_id']}_{suffix}_{live}_{prefix}")
-
-
-def results_page():
-    st.button("← Back to configuration", on_click=lambda: st.session_state.update(live_page="configuration"))
-    if "pending_run" in st.session_state:
-        payload = st.session_state.pop("pending_run")
-        st.subheader(payload["config_snapshot"]["experiment"]["name"])
-        st.markdown(payload["query"])
-        status, answer_box = st.empty(), st.empty()
-        answer = ""
-        try:
-            with httpx.stream("POST", API_URL + "/query/stream", json=payload, timeout=httpx.Timeout(600, connect=10)) as response:
-                if response.is_error:
-                    raise ValueError(json.loads(response.read()).get("detail", "Run failed"))
-                for line in response.iter_lines():
-                    if not line:
-                        continue
-                    item = json.loads(line)
-                    if item["type"] == "status":
-                        status.info(item["message"])
-                    elif item["type"] == "token":
-                        answer += item["text"]
-                        answer_box.markdown(answer)
-                    elif item["type"] == "result":
-                        st.session_state.live_result = item["output"]
-            if "live_result" not in st.session_state:
-                raise ValueError("The response stream ended before the run completed.")
-            st.rerun()
-        except (httpx.HTTPError, ValueError) as exc:
-            st.error(str(exc))
-            return
-    run = st.session_state.get("live_result")
-    if not run:
-        st.info("Return to configuration to start a run.")
-        return
-    with st.container(border=True):
-        st.caption("EXPERIMENT NAME")
-        st.subheader(run["experiment"]["name"])
-        st.caption(run["experiment"].get("description", ""))
-    if run["results"].get("error"):
-        st.error(run["results"]["error"])
-    with st.container(border=True):
-        st.subheader("Question")
-        st.markdown(run["query"])
-        st.divider()
-        st.subheader("RAG Answer")
-        st.markdown(run["results"].get("answer") or "No answer was generated.")
-    show_evidence(run)
-    json_pair(run, live=True)
-
-
-def saved_history(kind):
-    try:
-        response = api("GET", "/history", params={"kind": kind})
-        for message in response["errors"]:
-            st.warning(message)
-        return response["records"]
-    except (ValueError, httpx.HTTPError) as exc:
-        st.warning(str(exc))
-        return []
-
-
-def compare_history(kind):
-    runs = saved_history(kind)
-    if not runs:
-        st.info("No saved runs yet. Completed runs will appear here.")
-        return
-    selected = []
-    for i, column in enumerate(st.columns(2)):
-        with column:
-            chosen = st.selectbox("Saved run " + "AB"[i], range(len(runs)), index=min(i, len(runs)-1),
-                                  key=f"select_{kind}_{i}", format_func=lambda n: runs[n]["experiment"]["name"] + " · " + runs[n]["run_id"])
-            selected.append(runs[chosen])
-    section = "algorithm_metrics" if kind == "evaluation" else "load_test_metrics"
-    fields = list(dict.fromkeys(key for run in selected for key in (run["results"].get(section) or {})))
-    st.dataframe([{"Metric": field, "A": (selected[0]["results"].get(section) or {}).get(field),
-                   "B": (selected[1]["results"].get(section) or {}).get(field)} for field in fields], hide_index=True, width="stretch")
-    for i, run in enumerate(selected):
-        with st.expander("Run " + "AB"[i] + " details", expanded=i == 0):
-            st.write("Status: " + run["results"]["status"])
-            if run["results"].get("error"):
-                st.error(run["results"]["error"])
-            if kind == "evaluation":
-                progress = run["results"].get("evaluation_progress")
-                if progress:
-                    st.write(f"Answers saved: {progress['answered_cases']}/{progress['total_cases']} · Fully scored cases: {progress['fully_scored_cases']}/{progress['total_cases']} · Scores saved: {progress['saved_scores']}/{progress['total_metrics']} · Failed metrics: {progress['failed_metrics']}")
-                    st.json(progress)
-                if run["results"].get("evaluation_warning"):
-                    st.warning(run["results"]["evaluation_warning"])
-                st.write("Valid cases per metric", run["results"].get("metric_valid_case_counts", {}))
-                cases = run["results"].get("per_case", [])
-                if cases:
-                    case = st.selectbox("Test case", cases, format_func=lambda row: row.get("query", str(row.get("case_id", ""))), key=f"case_{i}_{run['run_id']}")
-                    st.json(case)
-            else:
-                st.json(run["results"].get("sla_compliance", {}))
-            json_pair(run, prefix=str(i))
-
-
-st.markdown('<div class="eyebrow">OPEN-SOURCE TECH & API DOCUMENTATION</div>', unsafe_allow_html=True)
-st.title("RAG Ablation Studio")
-job_progress()
-live_tab, compare_tab = st.tabs(["Live Run Workspace", "Tuning & Ablation Matrix"], key="workspace_tab", on_change="rerun")
-with live_tab:
-    if st.session_state.live_page == "results":
-        results_page()
     else:
-        configuration_page()
-with compare_tab:
-    sources = ["project"] + ([st.session_state.upload_source] if st.session_state.get("upload_source") else [])
-    tuning_source = st.selectbox("Testing data source", sources, key="testing_source")
-    if st.button("Build / update testing index"):
-        start_job("/ingest", request_body(source=tuning_source))
-    evaluation_tab, load_tab = st.tabs(["RAGAS Evaluation", "Load Test"])
-    with evaluation_tab:
-        st.subheader("Tuning & Ablation Matrix")
-        st.caption("Evaluate your golden test set against vector, hybrid and reranked retrieval. Reference answers are required.")
-        name = st.text_input("Evaluation experiment name", key="evaluation_name")
-        with st.expander("Evaluation settings"):
-            model_control("Evaluation judge", "evaluation.judge_model", ["llama3.1:8b"], "gpt-4o-mini", "openai_key")
-            parameter_fields(st.session_state.config["evaluation"], "evaluation")
-        modes = st.multiselect("Retrieval modes", list(MODE_LABELS), default=list(MODE_LABELS), format_func=MODE_LABELS.get)
-        st.caption("Evaluations use the testing data source and run independently.")
-        if st.button("Run evaluation", type="primary", disabled=not name.strip() or not modes):
-            start_job("/evaluate", {**request_body(name, tuning_source), "modes": modes})
-        with st.expander("Resume an unfinished evaluation"):
-            unfinished = [run for run in saved_history("evaluation")
-                          if run["results"]["status"] in {"INTERRUPTED", "CANCELLED", "FAILED", "PARTIAL"}
-                          and run.get("dataset", {}).get("snapshot")]
-            st.caption("Uses the original dataset, configuration and index. Saved answers and successful scores are skipped; failed metrics are retried. Resumes one saved retrieval mode.")
-            if unfinished:
-                selected = st.selectbox("Evaluation to resume", unfinished, format_func=lambda run: run["experiment"]["name"] + " · " + run["run_id"], key="resume_evaluation")
-                if st.button("Resume evaluation"):
-                    start_job("/evaluations/" + selected["run_id"] + "/resume", credentials())
-            else:
-                st.info("No resumable evaluations.")
-        st.button("Refresh evaluation history")
-        compare_history("evaluation")
-    with load_tab:
-        st.subheader("Independent Load Test")
-        name = st.text_input("Load-test experiment name", key="load_name")
-        with st.expander("Load-test input configuration", expanded=True):
-            parameter_fields(st.session_state.config["load_testing"], "load_testing")
-        queries = st.text_area("Load-test queries (one per line)", key="load_queries", placeholder="Provide representative questions for the load test.")
-        if st.button("Run load test", type="primary", disabled=not name.strip() or not queries.strip()):
-            start_job("/load-tests", {**request_body(name, tuning_source), "queries": [q.strip() for q in queries.splitlines() if q.strip()]})
-        st.button("Refresh load-test history")
-        compare_history("load_test")
+        st.info('No saved result for this branch.')
+        active = any(j.get('signature') == item['signature'] and j['status'] in {'PENDING', 'RUNNING'} for j in st.session_state.get('tree_jobs', {}).values())
+        if active:
+            st.caption('This branch is running. Saved results appear here as checkpoints arrive.')
+        if st.button('🚀 Run Experiment', type='primary', key=prefix + '_run', disabled=active):
+            try:
+                execute_branch(item)
+            except (ValueError, OSError, httpx.HTTPError) as exc:
+                st.error(str(exc))
+
+
+if completed_paths:
+    st.divider()
+    st.subheader('Matching results · Compare completed paths')
+    for offset in range(0, len(completed_paths), 3):
+        row = completed_paths[offset:offset+3]
+        for item, column in zip(row, st.columns(len(row), gap='large')):
+            with column, st.container(border=True):
+                st.subheader('Path ' + item['id'] + ' · ' + MODES[item['config']['retrieval_pipeline']['mode']])
+                hits, _ = find_runs(item['signature'], 'evaluation')
+                st.caption(f'{len(hits)} fully matching historical results')
+                if hits:
+                    # Show every exact match, rather than silently picking just one run.
+                    for run in hits:
+                        with st.expander(run['experiment']['name'] + ' · ' + run['results']['status'], expanded=len(hits) == 1):
+                            render_result(run, 'path_' + item['id'] + '_' + run['run_id'])
+                else:
+                    branch_card(item, 'path_' + item['id'])
+
+
+
+job_progress()
+
