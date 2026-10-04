@@ -399,6 +399,8 @@ def grouped_workspace(history):
                                 if not all(result_path['ready']) or result_path.get('focus_stage', 4) < 4:
                                     continue
                                 wanted = signature(result_path['config'], 'evaluation', 'project', result_path['manifest'], result_path['dataset'])
+                                if any(result['signature'] == wanted for result in completed):
+                                    continue
                                 hits, _ = find_runs(wanted, 'evaluation')
                                 label = comparison_title(result_path, paths)
                                 st.success(f'{label}: {len(hits)} exact historical matches') if hits else st.info(f'{label}: No exact historical match')

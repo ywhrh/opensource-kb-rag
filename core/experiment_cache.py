@@ -1,5 +1,6 @@
 """Match immutable paired snapshots by execution inputs, never by display names."""
 from copy import deepcopy
+from functools import lru_cache
 from core.config_loader import digest
 from core.history import folder
 import yaml
@@ -26,19 +27,38 @@ def record_signature(record):
                      record.get('query'), record.get('queries'))
 
 
-def find_runs(wanted, kind):
-    hits, warnings = [], []
+@lru_cache(maxsize=128)
+def _read_pair(input_path, input_stamp, output_path, output_stamp):
+    """Cache parsed pairs by file identity; atomic checkpoints invalidate the cache."""
+    loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
+    saved_input = yaml.load(input_path.read_text(), Loader=loader)
+    saved_output = yaml.load(output_path.read_text(), Loader=loader)
+    if saved_input['run_id'] != saved_output['run_id']:
+        return None
+    wanted = record_signature(saved_input)
+    if wanted != record_signature(saved_output):
+        return None
+    return saved_input, saved_output, wanted
+
+
+def saved_pairs(kind):
+    pairs, warnings = [], []
     for output in sorted(folder(kind).glob('*_output.yaml'), reverse=True):
         input_path = output.with_name(output.name.replace('_output.yaml', '_input.yaml'))
-        if not input_path.exists():
-            continue
         try:
-            saved_input = yaml.safe_load(input_path.read_text())
-            saved_output = yaml.safe_load(output.read_text())
-            if saved_output['kind'] != kind or saved_input['run_id'] != saved_output['run_id']:
+            if not input_path.exists():
                 continue
-            if record_signature(saved_input) == wanted == record_signature(saved_output):
-                hits.append(saved_output)
+            def stamp(path):
+                stat = path.stat()
+                return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino, stat.st_size
+            pair = _read_pair(input_path, stamp(input_path), output, stamp(output))
+            if pair and pair[0]['kind'] == kind and pair[1]['kind'] == kind:
+                pairs.append(deepcopy(pair))
         except (OSError, yaml.YAMLError, KeyError, TypeError, AttributeError):
             warnings.append(output.name)
-    return hits, warnings
+    return pairs, warnings
+
+
+def find_runs(wanted, kind):
+    pairs, warnings = saved_pairs(kind)
+    return [output for _, output, recorded in pairs if recorded == wanted], warnings

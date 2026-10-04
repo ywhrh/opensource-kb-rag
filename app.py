@@ -5,10 +5,9 @@ import os
 
 import httpx
 import streamlit as st
-import yaml
 
 from core.config_loader import ROOT, RAGConfig, load_config, revision
-from core.experiment_cache import signature, find_runs, record_signature
+from core.experiment_cache import signature, find_runs, saved_pairs
 from core.secrets import load_keys, save_key
 from evaluation.golden_dataset_loader import load_dataset
 
@@ -369,21 +368,10 @@ with existing_column:
               type='primary' if st.session_state.get('only_existing_tests') else 'secondary',
               on_click=toggle_existing_tests, width='stretch')
 
-# History inputs supply node options; no live configuration changes occur here.
-history_runs = []
-for output_path in sorted((ROOT / 'data/experiments_history').glob('*_output.yaml'), reverse=True):
-    input_path = output_path.with_name(output_path.name.replace('_output.yaml', '_input.yaml'))
-    if not input_path.exists():
-        continue
-    try:
-        saved = yaml.safe_load(input_path.read_text())
-        output = yaml.safe_load(output_path.read_text())
-        if saved['run_id'] != output['run_id'] or record_signature(saved) != record_signature(output):
-            continue
-        if saved['kind'] == 'evaluation' and saved['source_id'] == 'project' and len(saved.get('dataset', {}).get('snapshot', [])) == 60:
-            history_runs.append(saved)
-    except (OSError, yaml.YAMLError, KeyError, TypeError, AttributeError):
-        continue
+# Parsing is cached by file identity; stat checks still pick up new checkpoints.
+pairs, _ = saved_pairs('evaluation')
+history_runs = [saved for saved, _, _ in pairs if saved['source_id'] == 'project'
+                and len(saved.get('dataset', {}).get('snapshot', [])) == 60]
 if not history_runs:
     st.info('No paired 60-question project experiment configurations found.')
     st.stop()
