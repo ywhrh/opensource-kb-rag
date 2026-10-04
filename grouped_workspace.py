@@ -1,5 +1,6 @@
 """Five grouped configuration cards with checkout copies and local branch state."""
 from copy import deepcopy
+from itertools import product
 import streamlit as st
 from core.config_loader import RAGConfig, digest
 from core.experiment_cache import signature, find_runs
@@ -79,6 +80,77 @@ def comparison_title(item, paths):
             value = MODES.get(value, value)
         differences.append(f'{name}: {value}')
     return ' · '.join(differences) or 'Same configuration'
+
+
+def flatten_fields(value, prefix=''):
+    fields = {}
+    for key, entry in value.items():
+        name = prefix + key
+        if isinstance(entry, dict):
+            fields.update(flatten_fields(entry, name + '.'))
+        else:
+            fields[name] = entry
+    return fields
+
+
+def shared_configuration(config, split):
+    fields = flatten_fields(config)
+    def owned(key):
+        if split == 0:
+            return key.startswith('retrieval_pipeline.')
+        if split == 1:
+            return key.startswith('vector_search.') and key != 'vector_search.top_k'
+        if split == 2:
+            return key == 'vector_search.top_k' or key.startswith(('bm25_search.', 'hybrid_fusion.', 'rerank.'))
+        return key.startswith(('generation.', 'evaluation.'))
+    return digest({k: v for k, v in fields.items() if not owned(k)
+                   and not k.startswith(('experiment.', 'load_testing.')) and k != 'evaluation.dataset_path'})
+
+
+def existing_choices(history, paths, identifier, stage, preceding, field):
+    """Offer only values with a saved full configuration for every active path."""
+    active = next(i for i, p in enumerate(paths) if p['id'] == identifier)
+    root = paths[0]
+    records = [r for r in history if r['dataset']['sha256'] == root['dataset']['sha256']
+               and all(r['knowledge_base'].get(k) == root['manifest'].get(k)
+                       for k in ('collection_name', 'source_revision'))]
+    split = paths[1]['checkout_stage'] if len(paths) == 2 else None
+    candidates = []
+    for i, item in enumerate(paths):
+        candidates.append([r for r in records
+            if all(card_value(r['config_snapshot'], n) == card_value(item['config'], n) for n in range(stage))
+            and (i != active or all(get(r['config_snapshot'], name) == get(item['config'], name) for name in preceding))
+            and (split != stage or i == active or card_value(r['config_snapshot'], split) == card_value(item['config'], split))])
+    choices = []
+    for pair in product(*candidates):
+        if split is not None and shared_configuration(pair[0]['config_snapshot'], split) != shared_configuration(pair[1]['config_snapshot'], split):
+            continue
+        value = get(pair[active]['config_snapshot'], field)
+        if not any(value == old[0] for old in choices):
+            choices.append((value, pair))
+    return choices
+
+
+def edit_existing(identifier, stage, path, choices):
+    value = st.session_state[f'group_{identifier}_{stage}_{path}']
+    paths = st.session_state.grouped_paths
+    if value is None:
+        for item in paths:
+            item['ready'][stage:] = [False] * (4-stage)
+        return
+    pair = next((pair for candidate, pair in choices if candidate == value), None)
+    if pair is None:
+        return
+    for item, record in zip(paths, pair):
+        item['config'] = deepcopy(record['config_snapshot'])
+        item.pop('focus_stage', None)
+        if item['id'] == identifier or item['nodes'][stage] == next(p for p in paths if p['id'] == identifier)['nodes'][stage]:
+            item['ready'][stage] = True
+        item['ready'][stage+1:] = [False] * (3-stage)
+    # Refresh all widget defaults from the selected, coherent history snapshots.
+    for key in list(st.session_state):
+        if key.startswith('group_'):
+            del st.session_state[key]
 
 
 def select_card(identifier, stage):
@@ -255,11 +327,24 @@ def grouped_workspace(history):
                         else:
                             st.markdown(f'**{stage+1:02d} · {TITLES[stage]}**')
                         config = item['config']
+                        preceding = []
                         def widget(path, label, options=None, first=False, **kwargs):
                             key = f'group_{identifier}_{stage}_{path}'
                             if key not in st.session_state:
                                 st.session_state[key] = None if first and not item['ready'][stage] else get(config, path)
                             args = dict(key=key, on_change=edit, args=(identifier, stage, path), label_visibility='collapsed')
+                            if st.session_state.get('only_existing_tests'):
+                                choices = existing_choices(history, paths, identifier, stage, preceding, path)
+                                preceding.append(path)
+                                options = [value for value, _ in choices]
+                                kwargs = {k: v for k, v in kwargs.items() if k == 'format_func'}
+                                args.update(on_change=edit_existing, args=(identifier, stage, path, choices))
+                                if not options:
+                                    st.caption(label + ': No compatible saved test. Reset or change an earlier card.')
+                                    return None
+                                if st.session_state.get(key) is not None and st.session_state[key] not in options:
+                                    st.session_state[key] = options[0]
+
                             name, value = st.columns([.85, 1.3], gap='small', vertical_alignment='center')
                             with name:
                                 st.markdown(label)

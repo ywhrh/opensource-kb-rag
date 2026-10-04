@@ -353,13 +353,21 @@ page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation'], horizontal=True,
 if page == 'Live Run':
     live_workspace()
     st.stop()
-refresh_column, reset_column, _ = st.columns([.17, .09, .74], gap='small')
+refresh_column, reset_column, existing_column, _ = st.columns([.17, .09, .19, .55], gap='small')
 with refresh_column:
     if st.button('Refresh saved results', width='stretch'):
         st.rerun()
 with reset_column:
     st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
 
+def toggle_existing_tests():
+    st.session_state.only_existing_tests = not st.session_state.get('only_existing_tests', False)
+    reset_tuning_workspace()
+
+with existing_column:
+    st.button('Only existing tests' + (' ✓' if st.session_state.get('only_existing_tests') else ''),
+              type='primary' if st.session_state.get('only_existing_tests') else 'secondary',
+              on_click=toggle_existing_tests, width='stretch')
 
 # History inputs supply node options; no live configuration changes occur here.
 history_runs = []
@@ -369,6 +377,9 @@ for output_path in sorted((ROOT / 'data/experiments_history').glob('*_output.yam
         continue
     try:
         saved = yaml.safe_load(input_path.read_text())
+        output = yaml.safe_load(output_path.read_text())
+        if saved['run_id'] != output['run_id'] or record_signature(saved) != record_signature(output):
+            continue
         if saved['kind'] == 'evaluation' and saved['source_id'] == 'project' and len(saved.get('dataset', {}).get('snapshot', [])) == 60:
             history_runs.append(saved)
     except (OSError, yaml.YAMLError, KeyError, TypeError, AttributeError):
@@ -456,6 +467,8 @@ if completed_paths:
                     for run in hits:
                         with st.expander(run['experiment']['name'] + ' · ' + run['results']['status'], expanded=len(hits) == 1):
                             render_result(run, 'path_' + item['id'] + '_' + run['run_id'])
+                elif st.session_state.get('only_existing_tests'):
+                    st.info('No compatible saved result. Reset or change an earlier card.')
                 else:
                     branch_card(item, 'path_' + item['id'])
 
