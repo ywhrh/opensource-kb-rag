@@ -27,8 +27,10 @@ ENUMS = {
 METRICS = ['context_recall', 'context_precision', 'faithfulness', 'answer_correctness']
 st.set_page_config(page_title='OpenKB-RAG Studio', page_icon='◈', layout='wide', initial_sidebar_state='collapsed')
 st.markdown('''<style>
-.block-container {max-width:1800px;padding:2.5rem 2rem 4rem;}
-h1 {font-size:2.3rem!important;font-weight:650!important;letter-spacing:-.07rem;}
+[data-testid="stHeader"] {background:transparent!important;}
+.block-container {max-width:1800px;padding:1rem 2rem;}
+.block-container > [data-testid="stVerticalBlock"] {gap:.4rem;}
+h1 {font-size:1.9rem!important;font-weight:650!important;letter-spacing:-.07rem;padding:.2rem 0!important;margin:0!important;}
 h3 {font-size:1.1rem!important;letter-spacing:-.02rem;}
 [data-testid="stVerticalBlockBorderWrapper"] {border-radius:18px;}
 [data-testid="stMetric"] {background:#f5f5f7;border-radius:14px;padding:.9rem;margin-bottom:.6rem;}
@@ -165,17 +167,22 @@ def render_result(run, prefix):
     if run['kind'] == 'evaluation':
         progress = results.get('evaluation_progress', {})
         st.caption(f"Saved scores: {progress.get('saved_scores', 0)}/{progress.get('total_metrics', 0)}")
-        for key, value in results.get('algorithm_metrics', {}).items():
-            st.metric(key.replace('_', ' ').title(), f'{value:.3f}' if value is not None else '—')
-            st.caption(f"Valid cases: {results.get('metric_valid_case_counts', {}).get(key, 0)}/{len(results.get('per_case', []))}")
+        metrics = results.get('algorithm_metrics') or {}
+        keys = list(dict.fromkeys(METRICS + list(metrics)))
+        headings = [key.replace('_', ' ').title() for key in keys]
+        scores = [f'{metrics[key]:.3f}' if metrics.get(key) is not None else '—' for key in keys]
+        st.markdown('| ' + ' | '.join(headings) + ' |\n| ' + ' | '.join(['---'] * len(keys)) + ' |\n| ' + ' | '.join(scores) + ' |')
+        with st.expander('评分完整性'):
+            total = len(results.get('per_case', []))
+            counts = results.get('metric_valid_case_counts') or {}
+            for key, heading in zip(keys, headings):
+                st.caption(f'{heading}: {counts.get(key, 0)}/{total} valid cases')
     if run['kind'] == 'load_test':
         for key in ['actual_qps', 'total_requests', 'failed_requests']:
             value = (results.get('load_test_metrics') or {}).get(key)
             st.metric(key.replace('_', ' ').title(), value if value is not None else '—')
     p99 = (results.get('load_test_metrics') or {}).get('actual_p99_latency_ms')
-    st.metric('Measured P99 latency', f'{p99:.1f} ms' if p99 is not None else 'Not measured')
-    if p99 is None:
-        st.caption('P99 requires an independent load test; RAGAS does not measure it.')
+    st.caption('Measured P99 latency · ' + (f'{p99:.1f} ms' if p99 is not None else 'Not measured'))
     if results.get('evaluation_warning'):
         st.warning(results['evaluation_warning'])
     if results.get('error'):
@@ -333,14 +340,25 @@ def live_workspace():
             st.download_button('Download ' + title, json.dumps(payload, ensure_ascii=False, indent=2), run['run_id'] + '_' + suffix + '.json', 'application/json', key='live_download_' + suffix)
 
 
+def reset_tuning_workspace():
+    """Clear UI selections so the configuration flow starts again."""
+    for key in list(st.session_state):
+        if key.startswith('group_') or key in {'grouped_paths', 'grouped_counter', 'grouped_checkout_used'}:
+            del st.session_state[key]
+
+
 st.markdown('<div class="eyebrow">OPEN-SOURCE DOCUMENTATION · EXPERIMENT WORKSPACE</div>', unsafe_allow_html=True)
 st.title('OpenKB-RAG Studio')
 page = st.radio('Workspace', ['Live Run', 'Tuning & Ablation'], horizontal=True, key='workspace_page', label_visibility='collapsed')
 if page == 'Live Run':
     live_workspace()
     st.stop()
-if st.button('Refresh saved results'):
-    st.rerun()
+refresh_column, reset_column, _ = st.columns([.17, .09, .74], gap='small')
+with refresh_column:
+    if st.button('Refresh saved results', width='stretch'):
+        st.rerun()
+with reset_column:
+    st.button('Reset', on_click=reset_tuning_workspace, width='stretch')
 
 
 # History inputs supply node options; no live configuration changes occur here.
@@ -425,12 +443,12 @@ def branch_card(item, prefix):
 
 if completed_paths:
     st.divider()
-    st.subheader('Matching results · Compare completed paths')
+    st.subheader('Matching results')
     for offset in range(0, len(completed_paths), 3):
         row = completed_paths[offset:offset+3]
         for item, column in zip(row, st.columns(len(row), gap='large')):
             with column, st.container(border=True):
-                st.subheader('Path ' + item['id'] + ' · ' + MODES[item['config']['retrieval_pipeline']['mode']])
+                st.subheader(item['title'])
                 hits, _ = find_runs(item['signature'], 'evaluation')
                 st.caption(f'{len(hits)} fully matching historical results')
                 if hits:

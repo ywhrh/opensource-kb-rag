@@ -43,6 +43,44 @@ def fingerprint(item, stage):
     return digest(card_value(item['config'], stage))
 
 
+def comparison_title(item, paths):
+    """Name each result using the settings that differ in the checked-out card."""
+    if len(paths) < 2:
+        return MODES[item['config']['retrieval_pipeline']['mode']]
+    stage = paths[1]['checkout_stage']
+    def flatten(value, prefix=''):
+        fields = {}
+        for key, entry in value.items():
+            name = prefix + key
+            if isinstance(entry, dict):
+                fields.update(flatten(entry, name + '.'))
+            else:
+                fields[name] = entry
+        return fields
+    candidates = [flatten(card_value(p['config'], stage)) for p in paths]
+    own = flatten(card_value(item['config'], stage))
+    labels = {'mode': 'Retrieval', 'model_name': 'Model', 'index_type': 'Index',
+              'metric_type': 'Metric', 'top_k': 'Top-K', 'vector_top_k': 'Vector Top-K',
+              'ef': 'HNSW ef', 'M': 'HNSW M', 'efConstruction': 'efConstruction',
+              'llm_model': 'Answer model', 'judge_model': 'RAGAS judge', 'top_n': 'Rerank Top-N'}
+    differences = []
+    for key in dict.fromkeys(k for candidate in candidates for k in candidate):
+        if all(candidate.get(key) == candidates[0].get(key) for candidate in candidates):
+            continue
+        name = labels.get(key.rsplit('.', 1)[-1], key.replace('_', ' ').replace('.', ' · '))
+        if key == 'model_name' and stage == 1:
+            name = 'Embedding'
+        elif key == 'bm25.model_name':
+            name = 'BM25'
+        elif key == 'rerank.model_name':
+            name = 'Reranker'
+        value = own.get(key, 'Not applicable')
+        if key == 'mode':
+            value = MODES.get(value, value)
+        differences.append(f'{name}: {value}')
+    return ' · '.join(differences) or 'Same configuration'
+
+
 def select_card(identifier, stage):
     """Return to this configuration and discard the later comparison branches."""
     item = deepcopy(next(p for p in st.session_state.grouped_paths if p['id'] == identifier))
@@ -150,9 +188,6 @@ def grouped_workspace(history):
     div[class*="st-key-grouped_path_"] [data-testid="stMarkdownContainer"] p {margin:0;font-size:.75rem;line-height:1.15;white-space:nowrap;}
     div[class*="st-key-grouped_path_"] [data-testid="stWidgetLabel"] p {font-size:.82rem;}
     /* Keep two fully expanded configuration cards within a desktop viewport. */
-    .block-container {padding-top:1rem!important;padding-bottom:1rem!important;}
-    .block-container > [data-testid="stVerticalBlock"] {gap:.4rem;}
-    h1 {font-size:1.65rem!important;padding:.2rem 0!important;margin:0!important;}
     div[class*="st-key-grouped_path_"] [data-testid="stHorizontalBlock"] {gap:.25rem;}
     div[class*="st-key-configuration_node_"] {padding:6px!important;}
     div[class*="st-key-grouped_path_"] [data-testid="stSelectbox"] [role="group"],
@@ -280,9 +315,9 @@ def grouped_workspace(history):
                                     continue
                                 wanted = signature(result_path['config'], 'evaluation', 'project', result_path['manifest'], result_path['dataset'])
                                 hits, _ = find_runs(wanted, 'evaluation')
-                                label = 'Configuration ' + result_path['id']
+                                label = comparison_title(result_path, paths)
                                 st.success(f'{label}: {len(hits)} exact historical matches') if hits else st.info(f'{label}: No exact historical match')
-                                completed.append({'id': result_path['id'], 'signature': wanted, 'config': deepcopy(result_path['config']), 'kind': 'evaluation', 'source': 'project', 'manifest': result_path['manifest'], 'dataset': result_path['dataset'], 'query': None, 'queries': []})
+                                completed.append({'title': label, 'id': result_path['id'], 'signature': wanted, 'config': deepcopy(result_path['config']), 'kind': 'evaluation', 'source': 'project', 'manifest': result_path['manifest'], 'dataset': result_path['dataset'], 'query': None, 'queries': []})
                             st.caption('Results are compared below. A missing result can run only when explicitly requested.')
                         if stage < 4 and not st.session_state.get('grouped_checkout_used', False) and st.session_state.grouped_counter == 1:
                             value = fingerprint(item, stage)
