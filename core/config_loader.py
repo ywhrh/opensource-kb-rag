@@ -117,7 +117,14 @@ class QueryBatching(Model):
     timeout_seconds: float = Field(default=30, gt=0, le=120)
 
 
+class QueryCache(Model):
+    enabled: bool = False
+    max_entries: int = Field(default=1024, ge=1, le=4096)
+    ttl_seconds: float = Field(default=300, gt=0, le=86400)
+
+
 class VectorSearch(Model):
+    query_cache: QueryCache = Field(default_factory=QueryCache)
     query_batching: QueryBatching = Field(default_factory=QueryBatching)
     query_device: Literal['cpu', 'mps'] = 'cpu'  # Query inference only; index embeddings stay unchanged.
     enabled: bool = True
@@ -131,6 +138,8 @@ class VectorSearch(Model):
 
     @model_validator(mode='after')
     def compatible(self):
+        if self.query_cache.enabled and self.model_name == 'text-embedding-3-small':
+            raise ValueError('Query embedding cache currently supports local models only')
         if self.query_batching.enabled and self.model_name == 'text-embedding-3-small':
             raise ValueError('Dynamic query batching requires a local embedding model')
         if not self.enabled:

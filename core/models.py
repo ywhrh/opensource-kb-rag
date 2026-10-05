@@ -3,6 +3,7 @@ from functools import lru_cache
 import json
 import os
 from threading import RLock
+from time import perf_counter
 
 import httpx
 import numpy as np
@@ -31,6 +32,8 @@ def embedding_model(name, device='cpu'):
 
 def embed(texts, config, credentials=None, query=False, timings=None, diagnostics=None):
     name = config.vector_search.model_name
+    if query and diagnostics is not None:
+        diagnostics['embedding_cache'] = {'enabled': False, 'hit': False, 'inference_executed': True}
     if name == 'text-embedding-3-small':
         from openai import OpenAI
         client = OpenAI(api_key=provider_key(credentials, 'openai'), timeout=120, max_retries=2)
@@ -42,6 +45,23 @@ def embed(texts, config, credentials=None, query=False, timings=None, diagnostic
     if query and name == 'BAAI/bge-large-en-v1.5':
         texts = ['Represent this sentence for searching relevant passages: ' + text for text in texts]
     device = config.vector_search.query_device if query else 'cpu'
+    cache = config.vector_search.query_cache
+    cache_key = None
+    if query and cache.enabled:
+        if len(texts) != 1:
+            raise ValueError('Query embedding cache accepts one query per request')
+        from core.query_cache import QUERY_CACHE
+        # Exact formatted input, model/device and policy; index settings cannot change a vector.
+        scope = (diagnostics or {}).get('embedding_cache_scope', 'shared')
+        cache_key = (scope, name, device, 'normalized-float-v1', cache.max_entries, cache.ttl_seconds, texts[0])
+        started = perf_counter()
+        cached, metadata = QUERY_CACHE.get(cache_key)
+        if timings is not None:
+            timings['embedding_cache_lookup_ms'] = (perf_counter() - started) * 1000
+        if diagnostics is not None:
+            diagnostics['embedding_cache'] = {'enabled': True, **metadata}
+        if cached is not None:
+            return np.asarray([cached])
     if device == 'mps':
         import torch
         if not torch.backends.mps.is_available():
@@ -66,8 +86,17 @@ def embed(texts, config, credentials=None, query=False, timings=None, diagnostic
                            embedding_batch_compute_ms=metadata['compute_ms'])
         if diagnostics is not None:
             diagnostics['batching'] = metadata
-        return np.asarray([vector])
-    return model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False, convert_to_numpy=True)
+        vectors = np.asarray([vector])
+    else:
+        vectors = model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False, convert_to_numpy=True)
+    if cache_key is not None:
+        started = perf_counter()
+        metadata = QUERY_CACHE.put(cache_key, vectors[0], cache)
+        if timings is not None:
+            timings['embedding_cache_store_ms'] = (perf_counter() - started) * 1000
+        if diagnostics is not None:
+            diagnostics['embedding_cache'].update(metadata)
+    return vectors
 
 
 SYSTEM_PROMPT = '''You answer questions about technical documentation using only the supplied evidence.

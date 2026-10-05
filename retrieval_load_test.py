@@ -11,13 +11,7 @@ from pathlib import Path
 
 # --------------------------- EDIT CONFIG HERE ---------------------------
 # Update these notes for every user-authorized tuning round before launching a run.
-TUNING_ROUND = {
-    'label': 'mps_dynamic_batching_8_10ms',
-    'baseline_run_id': '20261005T133318_transformers_v4571_baseline_60_incremental_retri_8d7921ffcf',
-    'changes': [{'parameter': 'vector_search.query_batching', 'before': {'enabled': False}, 'after': {'enabled': True, 'max_size': 8, 'wait_ms': 10, 'queue_capacity': 128, 'timeout_seconds': 30}}, {'parameter': 'embedding_batch_workers_per_config', 'before': 'independent request inference', 'after': 1}],
-    'accounting_note': 'Requests cancelled by Locust before receiving a response are recorded separately and excluded from completed-request QPS/errors. The initial MPS trial was retained as PARTIAL.',
-    'hypothesis': 'Batching MPS queries may improve throughput by combining inference calls; queueing may worsen latency. Compare with the same-user MPS baseline.',
-}
+TUNING_ROUND = {'label': 'mps_batching_embedding_cache_hot', 'baseline_run_id': '20261005T174304_transformers_v4571_baseline_60_incremental_retri_e85b49d9ef', 'changes': [{'parameter': 'vector_search.query_cache', 'before': {'enabled': False}, 'after': {'enabled': True, 'max_entries': 1024, 'ttl_seconds': 300}}, {'parameter': 'cache_scenario', 'before': 'off', 'after': 'hot'}, {'parameter': 'warmup_measurement_boundary', 'before': 'older batch runs may count warmup in-flight completions', 'after': 'all three new scenarios drain warmup; per-run independent phase namespaces'}], 'accounting_note': 'Same MPS/batch8/wait10ms/Vector-only settings. Cold fills during measurement; hot preloads all 60. Hit/miss group latency is saved. No query-result cache or single-flight.', 'monitoring_note': 'Process and Docker samplers now run independently; both actual timestamps retained. Initial 5-user hot PARTIAL trial is preserved separately.', 'hypothesis': 'Exact-query embedding cache may improve repeat-query latency/QPS while misses retain the existing inference path.'}
 
 API_HOST = 'http://127.0.0.1:8000'
 ENDPOINT = '/retrieve'
@@ -28,6 +22,8 @@ QUESTIONS_PATH = 'data/golden_test_dataset.json'
 USERS = 20
 QUERY_BATCHING = {'enabled': True, 'max_size': 8, 'wait_ms': 10, 'queue_capacity': 128, 'timeout_seconds': 30}
 QUERY_EMBEDDING_DEVICE = 'mps'
+QUERY_CACHE = {'enabled': True, 'max_entries': 1024, 'ttl_seconds': 300}
+CACHE_SCENARIO = 'hot'
 SPAWN_RATE = 2.0                     # New users per second, not request QPS.
 WAIT_TIME_SECONDS = 0.1              # Delay after a response, before the next request.
 WARMUP_SECONDS = 15                  # Includes user ramp-up; completed warmup requests excluded.
@@ -76,6 +72,8 @@ USER_SEQUENCE = count()
 LOCUST_ENVIRONMENT = None
 LAST_CHECKPOINT = 0.0
 REQUEST_LOG = None
+PAUSE_REQUESTS = False
+INFLIGHT_REQUESTS = 0
 if os.getenv('RAG_LOAD_INPUT'):
     INPUT = yaml.load(Path(os.environ['RAG_LOAD_INPUT']).read_text(), Loader=getattr(yaml, 'CSafeLoader', yaml.SafeLoader))
     REQUEST_LOG = Path(os.environ['RAG_LOAD_REQUESTS']).open('w')
@@ -100,6 +98,11 @@ class RetrievalUser(HttpUser):
 
     @task
     def retrieve(self):
+        global INFLIGHT_REQUESTS
+        if PAUSE_REQUESTS:
+            import gevent
+            gevent.sleep(0.01)
+            return
         query_index = self.queries.randrange(len(INPUT['queries']))
         request_id = uuid4().hex
         start_epoch = time.time()
@@ -111,9 +114,12 @@ class RetrievalUser(HttpUser):
         trace, success, code, error_type = {}, False, None, None
         response_bytes = None
         evidence_ids = []
+        cache_phase = 'measurement' if MEASUREMENT_STARTED else 'warmup'
+        INFLIGHT_REQUESTS += 1
         try:
             with self.client.post(ENDPOINT, json=payload, name=ENDPOINT,
-                                  headers={'X-Load-Test-Id': INPUT['run_id'], 'X-Request-Id': request_id},
+                                  headers={'X-Load-Test-Id': INPUT['run_id'], 'X-Request-Id': request_id,
+                                           'X-Embedding-Cache-Phase': cache_phase},
                                   catch_response=True, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 response_bytes = len(response.content or b'')
                 code = response.status_code
@@ -143,7 +149,15 @@ class RetrievalUser(HttpUser):
                     timings = trace.get('timings_ms') or {}
                     mode = INPUT['config_snapshot']['retrieval_pipeline']['mode']
                     required = required_stages(mode)
-                    if INPUT['config_snapshot']['vector_search']['query_batching']['enabled']:
+                    cache = trace.get('embedding_cache') or {}
+                    cache_enabled = INPUT['config_snapshot']['vector_search']['query_cache']['enabled']
+                    if cache.get('enabled') is not cache_enabled or type(cache.get('hit')) is not bool:
+                        raise ValueError('Missing cache diagnostics')
+                    if cache_enabled:
+                        required.add('embedding_cache_lookup_ms')
+                        if cache.get('inference_executed') is not (not cache['hit']):
+                            raise ValueError('Cache inference accounting is inconsistent')
+                    if INPUT['config_snapshot']['vector_search']['query_batching']['enabled'] and not cache.get('hit'):
                         required.update({'embedding_queue_wait_ms', 'embedding_batch_compute_ms'})
                         metadata = trace.get('batching') or {}
                         if not isinstance(metadata.get('batch_id'), str) or not 1 <= metadata.get('batch_size', 0) <= QUERY_BATCHING['max_size']:
@@ -163,6 +177,7 @@ class RetrievalUser(HttpUser):
                     error_type = 'InvalidJSON'
                     response.failure('Invalid JSON response')
         finally:
+            INFLIGHT_REQUESTS -= 1
             row = {'timestamp': time.time(), 'phase': 'measurement' if MEASUREMENT_STARTED else 'warmup',
                    'load_test_id': INPUT['run_id'], 'request_id': request_id,
                    'server_request_id': trace.get('request_id') if isinstance(trace.get('request_id'), str) else None,
@@ -176,6 +191,9 @@ class RetrievalUser(HttpUser):
                    'timings_ms': trace.get('timings_ms', {}),
                    'embedding_device': trace.get('embedding_device'),
                    'batching': trace.get('batching', {}),
+                   'embedding_cache': trace.get('embedding_cache', {}),
+                   'embedding_cache_scope': trace.get('embedding_cache_scope'),
+                   'cache_phase': cache_phase,
                    'device_metrics': trace.get('device_metrics', {}),
                    'candidate_count_before_rerank': trace.get('candidate_count_before_rerank') if type(trace.get('candidate_count_before_rerank')) is int else None,
                    'evidence_count': trace.get('evidence_count') if type(trace.get('evidence_count')) is int else None}
@@ -187,15 +205,24 @@ class RetrievalLoadShape(LoadTestShape):
     def tick(self):
         global TIMEOUTS, MEASUREMENT_STARTED, MEASUREMENT_FINISHED
         global MEASUREMENT_START_RUN_TIME, MEASUREMENT_START_USERS, MEASUREMENT_ABORT_REASON
+        global PAUSE_REQUESTS
         elapsed = self.get_run_time()
         actual_users = self.get_current_user_count()
         if MEASUREMENT_STARTED is None:
             if elapsed >= WARMUP_SECONDS and actual_users == USERS:
+                # Drain warmup traffic before switching namespaces and resetting counts.
+                PAUSE_REQUESTS = True
+                if INFLIGHT_REQUESTS:
+                    if elapsed >= WARMUP_SECONDS + RAMP_UP_TIMEOUT_SECONDS:
+                        MEASUREMENT_ABORT_REASON = 'Warmup requests did not drain'
+                        return None
+                    return USERS, SPAWN_RATE
                 self.runner.stats.reset_all()
                 TIMEOUTS = 0
                 MEASUREMENT_STARTED = time.time()
                 MEASUREMENT_START_RUN_TIME = elapsed
                 MEASUREMENT_START_USERS = actual_users
+                PAUSE_REQUESTS = False
                 save_metrics(self.runner.environment, final=False)
             elif elapsed >= WARMUP_SECONDS + RAMP_UP_TIMEOUT_SECONDS:
                 MEASUREMENT_ABORT_REASON = 'Target user count was not reached before ramp-up timeout'
@@ -324,7 +351,10 @@ def main():
         source = original['source_id']
     else:
         config, source = load_config(), SOURCE_ID
-    from core.config_loader import QueryBatching
+    from core.config_loader import QueryBatching, QueryCache
+    if CACHE_SCENARIO not in ('off', 'cold', 'hot') or QUERY_CACHE['enabled'] != (CACHE_SCENARIO != 'off'):
+        raise ValueError('Cache scenario must agree with query cache enabled setting')
+    config.vector_search.query_cache = QueryCache.model_validate(QUERY_CACHE)
     config.vector_search.query_batching = QueryBatching.model_validate(QUERY_BATCHING)
     config.vector_search.query_device = QUERY_EMBEDDING_DEVICE
     manifest = require_index(config, source)
@@ -350,7 +380,7 @@ def main():
 
 def run_locked(config, source, manifest, queries, credentials, keys, original, api_info, initial_containers, questions):
     from core.config_loader import digest
-    from core.load_diagnostics import ResourceSampler, environment_metadata, summarize
+    from core.load_diagnostics import ResourceSampler, environment_metadata, summarize, read_jsonl
     from core.history import new_output, persist, folder
     parameters = {'users': USERS, 'spawn_rate': SPAWN_RATE, 'wait_time_seconds': WAIT_TIME_SECONDS,
                   'warmup_seconds': WARMUP_SECONDS, 'measurement_seconds': MEASUREMENT_SECONDS,
@@ -363,6 +393,8 @@ def run_locked(config, source, manifest, queries, credentials, keys, original, a
                   'ramp_up_timeout_seconds': RAMP_UP_TIMEOUT_SECONDS,
                   'max_resource_gap_seconds': MAX_RESOURCE_GAP_SECONDS,
                   'max_docker_gap_seconds': MAX_DOCKER_GAP_SECONDS}
+    parameters['cache_scenario'] = CACHE_SCENARIO
+    parameters['cache_protocol'] = 'Independent per-run warmup/measurement namespaces; drain warmup before measurement. Hot preloads every query; cold measurement namespace starts empty.'
     record = new_output(config, name=config.experiment.name + '_retrieval_load', kind='load_test',
                         source_id=source, queries=queries, question_dataset=questions, knowledge_base=manifest,
                         original_experiment_input=original,
@@ -404,7 +436,8 @@ def run_locked(config, source, manifest, queries, credentials, keys, original, a
         probe = http_post(API_HOST.rstrip('/') + ENDPOINT,
             json={'query': queries[0], 'source_id': source, 'config_snapshot': config.model_dump(),
                   'index_collection': manifest['collection_name'], 'credentials': credentials,
-                  'persist_history': False}, headers={'X-Load-Test-Id': record['run_id'], 'X-Request-Id': uuid4().hex}, timeout=REQUEST_TIMEOUT_SECONDS)
+                  'persist_history': False}, headers={'X-Load-Test-Id': record['run_id'], 'X-Request-Id': uuid4().hex,
+                                                     'X-Embedding-Cache-Phase': 'warmup'}, timeout=REQUEST_TIMEOUT_SECONDS)
         probe.raise_for_status()
         probe_body = probe.json()
         probe_trace = probe_body.get('diagnostics') if isinstance(probe_body, dict) else None
@@ -416,7 +449,24 @@ def run_locked(config, source, manifest, queries, credentials, keys, original, a
                 or probe_trace.get('embedding_device') != QUERY_EMBEDDING_DEVICE
                 or (QUERY_BATCHING['enabled'] and (not {'embedding_queue_wait_ms', 'embedding_batch_compute_ms'} <= probe_timings.keys() or not (probe_trace.get('batching') or {}).get('batch_id')))):
             raise RuntimeError('Exact-pipeline preflight did not return all required stage diagnostics')
-        preflight.update(status='SUCCESS', finished_at_epoch=time.time(), client_elapsed_ms=(time.perf_counter() - preflight_started) * 1000, diagnostics=probe_trace)
+        preflight.update(status='RUNNING', finished_at_epoch=time.time(), client_elapsed_ms=(time.perf_counter() - preflight_started) * 1000, diagnostics=probe_trace)
+        preflight['cache_scenario'] = CACHE_SCENARIO
+        preflight['cache_preload'] = []
+        if CACHE_SCENARIO == 'hot':
+            if QUERY_CACHE['max_entries'] < len(set(queries)) or QUERY_CACHE['ttl_seconds'] < WARMUP_SECONDS + RAMP_UP_TIMEOUT_SECONDS + MEASUREMENT_SECONDS + STOP_TIMEOUT_SECONDS:
+                raise ValueError('Hot cache capacity/TTL must cover the full workload and run')
+            for query_index, query in enumerate(queries):
+                response = http_post(API_HOST.rstrip('/') + ENDPOINT,
+                    json={'query': query, 'source_id': source, 'config_snapshot': config.model_dump(),
+                          'index_collection': manifest['collection_name'], 'credentials': credentials, 'persist_history': False},
+                    headers={'X-Load-Test-Id': record['run_id'], 'X-Request-Id': uuid4().hex,
+                             'X-Embedding-Cache-Phase': 'measurement'}, timeout=REQUEST_TIMEOUT_SECONDS)
+                response.raise_for_status()
+                preload_trace = response.json()['diagnostics']
+                preflight['cache_preload'].append({'query_index': query_index, 'diagnostics': preload_trace})
+                preflight_path.write_text(json.dumps(preflight, indent=2, allow_nan=False))
+            preflight['preload_finished_at_epoch'] = time.time()
+        preflight.update(status='SUCCESS', finished_at_epoch=time.time())
         preflight_path.write_text(json.dumps(preflight, indent=2, allow_nan=False))
         with prefix.with_name(prefix.name + '_locust.log').open('w') as log:
             with subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT) as process:
@@ -459,6 +509,17 @@ def run_locked(config, source, manifest, queries, credentials, keys, original, a
             and all(v['max_sample_gap_seconds'] is not None and v['max_sample_gap_seconds'] <= MAX_RESOURCE_GAP_SECONDS and v['samples'] >= max(2, int(metrics['measured_elapsed_seconds'] / MAX_RESOURCE_GAP_SECONDS)) for v in resources['processes'].values())
             and (not REQUIRE_DOCKER_METRICS or all(v['max_sample_gap_seconds'] <= MAX_DOCKER_GAP_SECONDS and v['first_sample_delay_seconds'] <= MAX_DOCKER_GAP_SECONDS and v['last_sample_age_seconds'] <= MAX_DOCKER_GAP_SECONDS and v['samples'] >= max(2, int(metrics['measured_elapsed_seconds'] / MAX_DOCKER_GAP_SECONDS)) for v in resources['containers'].values() if 'milvus' in (v.get('image') or '').lower()))
             and resources['sampled_span_seconds'] >= metrics['measured_elapsed_seconds'] - max(5, 2 * RESOURCE_SAMPLE_SECONDS))
+        cache_summary = diagnostic_summary['embedding_cache']
+        cache_complete = (cache_summary['hits'] + cache_summary['misses'] + cache_summary['disabled_requests'] == stage_count)
+        if CACHE_SCENARIO == 'hot':
+            cache_complete = cache_complete and cache_summary['hits'] == stage_count and cache_summary['misses'] == 0
+        elif CACHE_SCENARIO == 'cold':
+            cache_complete = cache_complete and cache_summary['misses'] > 0
+        else:
+            cache_complete = cache_complete and cache_summary['disabled_requests'] == stage_count
+        cache_complete = cache_complete and all(r.get('cache_phase') == 'measurement' for r in read_jsonl(prefix.with_name(prefix.name + '_requests.jsonl'))[0] if r.get('phase') == 'measurement' and r.get('success'))
+        complete = complete and cache_complete
+        diagnostic_summary['cache_protocol_complete'] = cache_complete
         diagnostic_summary['complete'] = complete
         destination = prefix.with_name(prefix.name + '_diagnostics.json')
         destination.write_text(json.dumps(diagnostic_summary, indent=2, allow_nan=False))

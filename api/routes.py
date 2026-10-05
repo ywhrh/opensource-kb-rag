@@ -143,6 +143,9 @@ async def retrieval(request: RunRequest, http_request: Request):
     if not re.fullmatch(r'[a-f0-9]{32}', request_id):
         request_id = uuid4().hex
     trace = {'request_id': request_id, 'load_test_id': run_id, 'timings_ms': {}}
+    phase = http_request.headers.get('X-Embedding-Cache-Phase', '')
+    if run_id and phase in ('warmup', 'measurement'):
+        trace['embedding_cache_scope'] = run_id + ':' + phase
     submitted = perf_counter()
     def execute():
         trace['timings_ms']['api_worker_queue_wait_ms'] = (perf_counter() - submitted) * 1000

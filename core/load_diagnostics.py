@@ -44,15 +44,33 @@ class ResourceSampler:
                           'coordinator': psutil.Process()}
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self.sample, daemon=True, name='load-resource-sampler')
+        self.docker_thread = threading.Thread(target=self.sample_docker, daemon=True, name='load-docker-sampler')
+        self.docker_lock = threading.Lock()
+        self.pending_docker = None
 
     def start(self):
         psutil.cpu_percent()
         for process in self.processes.values():
             process.cpu_percent()
         self.thread.start()
+        if self.collect_docker:
+            self.docker_thread.start()
+
+    def sample_docker(self):
+        # Docker CLI latency must not stall the one-second process sampler.
+        while not self.stop.is_set():
+            started = time.monotonic()
+            try:
+                result = {'containers': docker_resources()}
+            except Exception as exc:
+                result = {'docker_error_type': type(exc).__name__}
+            result['docker_sample_timestamp'] = time.time()
+            with self.docker_lock:
+                self.pending_docker = result
+            if self.stop.wait(max(0, self.docker_interval - (time.monotonic() - started))):
+                break
 
     def sample(self):
-        next_docker = 0
         with self.destination.open('w') as output:
             while not self.stop.wait(self.interval):
                 row = {'timestamp': time.time(), 'host_cpu_percent': psutil.cpu_percent(),
@@ -65,18 +83,18 @@ class ResourceSampler:
                                                   'rss_bytes': memory.rss, 'threads': process.num_threads()}
                     except psutil.Error as exc:
                         row['processes'][label] = {'error_type': type(exc).__name__}
-                if self.collect_docker and time.monotonic() >= next_docker:
-                    try:
-                        row['containers'] = docker_resources()
-                    except Exception as exc:
-                        row['docker_error_type'] = type(exc).__name__
-                    next_docker = time.monotonic() + self.docker_interval
+                with self.docker_lock:
+                    if self.pending_docker is not None:
+                        row.update(self.pending_docker)
+                        self.pending_docker = None
                 output.write(json.dumps(row, allow_nan=False) + '\n')
                 output.flush()
 
     def finish(self):
         self.stop.set()
         self.thread.join(timeout=20)
+        if self.collect_docker:
+            self.docker_thread.join(timeout=20)
 
 
 def summarize(prefix, measurement_start, measurement_end=None):
@@ -86,6 +104,7 @@ def summarize(prefix, measurement_start, measurement_end=None):
     cancelled_requests = 0
     device_metrics = {}
     batches = {}
+    cache_rows = {'hit': [], 'miss': [], 'disabled': []}
     requests_path = prefix.with_name(prefix.name + '_requests.jsonl')
     request_rows, invalid_requests = read_jsonl(requests_path)
     for row in request_rows:
@@ -100,6 +119,9 @@ def summarize(prefix, measurement_start, measurement_end=None):
             errors[key] = errors.get(key, 0) + 1
             continue
         request_count += 1
+        cache = row.get('embedding_cache') or {}
+        group = ('hit' if cache.get('hit') else 'miss') if cache.get('enabled') else 'disabled'
+        cache_rows[group].append(row)
         batch = row.get('batching') or {}
         if batch.get('batch_id'):
             batches[batch['batch_id']] = batch
@@ -128,13 +150,17 @@ def summarize(prefix, measurement_start, measurement_end=None):
             'peak_rss_bytes': max((v['rss_bytes'] for v in values if 'rss_bytes' in v), default=None)}
     containers = {}
     for row in resource_rows:
+        docker_timestamp = row.get('docker_sample_timestamp', row['timestamp'])
+        if docker_timestamp < measurement_start or (measurement_end is not None and docker_timestamp > measurement_end):
+            # Exclude a Docker sample collected before the phase boundary.
+            continue
         for container in row.get('containers', []):
             summary = containers.setdefault(container['Name'], {'samples': 0, 'peak_cpu_percent': 0, 'peak_memory_percent': 0, 'image': container.get('image')})
             summary['samples'] += 1
             summary['peak_cpu_percent'] = max(summary['peak_cpu_percent'], float(container['CPUPerc'].strip('%')))
             summary['peak_memory_percent'] = max(summary['peak_memory_percent'], float(container['MemPerc'].strip('%')))
     for name, summary in containers.items():
-        timestamps = [r['timestamp'] for r in resource_rows if any(c['Name'] == name for c in r.get('containers', []))]
+        timestamps = [r.get('docker_sample_timestamp', r['timestamp']) for r in resource_rows if any(c['Name'] == name for c in r.get('containers', [])) and r.get('docker_sample_timestamp', r['timestamp']) >= measurement_start and (measurement_end is None or r.get('docker_sample_timestamp', r['timestamp']) <= measurement_end)]
         summary['max_sample_gap_seconds'] = gaps(timestamps)
         summary['first_sample_delay_seconds'] = min(timestamps) - measurement_start
         summary['last_sample_age_seconds'] = (measurement_end or max(timestamps)) - max(timestamps)
@@ -143,7 +169,22 @@ def summarize(prefix, measurement_start, measurement_end=None):
                      'batch_size_counts': {str(size): sizes.count(size) for size in sorted(set(sizes))},
                      'unique_batch_compute': percentiles([b['compute_ms'] for b in batches.values()]),
                      'scope': 'unique batches containing at least one successful measured request; batches can cross warmup boundaries; queue_wait includes collection and previous-batch execution'}
-    return {'batching': batch_summary, 'cancelled_before_response': cancelled_requests, 'device_memory_peaks': device_metrics, 'measured_requests': measured_requests, 'invalid_jsonl_lines': invalid_requests + invalid_resources, 'successful_requests_with_stage_timings': request_count, 'request_failure_reasons': errors,
+    enabled_rows = cache_rows['hit'] + cache_rows['miss']
+    cache_summary = {'hits': len(cache_rows['hit']), 'misses': len(cache_rows['miss']),
+        'disabled_requests': len(cache_rows['disabled']),
+        'hit_rate': len(cache_rows['hit']) / len(enabled_rows) if enabled_rows else None,
+        'inference_query_submissions': sum(r.get('embedding_cache', {}).get('inference_executed', False) for rows in cache_rows.values() for r in rows),
+        'unique_missed_queries': len({r['query_index'] for r in cache_rows['miss']}),
+        'evicted_entries': sum(r['embedding_cache'].get('evicted_entries', 0) for r in enabled_rows),
+        'expired_entries': sum(r['embedding_cache'].get('expired_entries', 0) for r in enabled_rows),
+        'peak_process_cache_entries': max((r['embedding_cache'].get('entries', 0) for r in enabled_rows), default=0),
+        'peak_process_cache_vector_bytes': max((r['embedding_cache'].get('vector_bytes', 0) for r in enabled_rows), default=0),
+        'groups': {group: {'requests': len(rows),
+            'client_latency': percentiles([r['client_elapsed_ms'] for r in rows]),
+            'embedding_latency': percentiles([r['timings_ms']['embedding_ms'] for r in rows]),
+            'milvus_latency': percentiles([r['timings_ms']['vector_db_search_ms'] for r in rows])} for group, rows in cache_rows.items()},
+        'scope': 'successful measured requests only; vector_bytes excludes Python/key overhead; entry/byte peaks cover the whole API process including other run namespaces; no single-flight for concurrent misses'}
+    return {'embedding_cache': cache_summary, 'batching': batch_summary, 'cancelled_before_response': cancelled_requests, 'device_memory_peaks': device_metrics, 'measured_requests': measured_requests, 'invalid_jsonl_lines': invalid_requests + invalid_resources, 'successful_requests_with_stage_timings': request_count, 'request_failure_reasons': errors,
             'stages': {stage: percentiles(values) for stage, values in stages.items()},
             'resources': {'max_sample_gap_seconds': gaps([r['timestamp'] for r in resource_rows]), 'samples': len(resource_rows),
                 'first_sample_delay_seconds': min((r['timestamp'] - measurement_start for r in resource_rows), default=None),
@@ -224,6 +265,11 @@ def write_report(record, prefix):
               f"Diagnostic summary: `{prefix.name}_diagnostics.json`", '']
     lines += ['', '## Dynamic batching', '', json.dumps(diagnostics.get('batching', {}), indent=2), '',
               'Per-request embedding_batch_compute_ms describes a shared batch computation and must not be summed across requests. Queue wait includes time waiting for the worker and collecting a batch; the 10 ms collection window is not an overall queueing bound.', '']
+    lines += ['', '## Query embedding cache', '',
+              'Scenario: ' + str(record.get('load_test_parameters', {}).get('cache_scenario', 'not recorded')),
+              str(record.get('load_test_parameters', {}).get('cache_protocol', '')),
+              json.dumps(diagnostics.get('embedding_cache', {}), indent=2), '',
+              'A cold run begins empty but fills during measurement; its overall latency is a mixture, not pure miss latency. A hot run over 60 repeated questions is a repeat-query benchmark, not unseen-query capacity. Hits skip embedding only; Milvus is always queried. Vector-byte counters exclude Python objects/keys; process RSS is recorded separately.', '']
     lines += ['', f"Cancelled before HTTP response (excluded from completed-request QPS/errors): {diagnostics.get('cancelled_before_response', 0)}", '']
     lines += ['', '## Device memory peaks', '', json.dumps(diagnostics.get('device_memory_peaks', {}), indent=2), '']
     lines += ['## Saved artifact coverage', '', json.dumps(results.get('artifacts', {}), indent=2), '',

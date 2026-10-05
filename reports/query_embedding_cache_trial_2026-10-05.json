@@ -1,0 +1,337 @@
+{
+  "started_at_epoch": 1791221338.714425,
+  "plan": "5/10/20 users, off/cold/hot for each; stop on incomplete run; no automatic retry",
+  "runs": [
+    {
+      "users": 5,
+      "scenario": "off",
+      "run_id": "20261005T172901_transformers_v4571_baseline_60_incremental_retri_12653beaf1",
+      "status": "SUCCESS",
+      "exit_code": 0,
+      "metrics": {
+        "checkpoint_epoch": 1791221418.612372,
+        "final_snapshot": true,
+        "measurement_started": true,
+        "measurement_start_epoch": 1791221358.2971241,
+        "measurement_finished": true,
+        "measurement_start_users": 5,
+        "actual_warmup_seconds": 16.030145666911267,
+        "measurement_abort_reason": null,
+        "measured_elapsed_seconds": 60.31524682044983,
+        "timing_scope": "requests completed after warmup reset, including shutdown drain",
+        "total_requests": 1570,
+        "successful_requests": 1570,
+        "failed_requests": 0,
+        "timeout_requests": 0,
+        "actual_qps": 26.029902599481577,
+        "successful_qps": 26.029902599481577,
+        "error_rate": 0.0,
+        "actual_p50_latency_ms": 86,
+        "actual_p95_latency_ms": 100,
+        "actual_p99_latency_ms": 110,
+        "latency_scope": "client-observed retrieval HTTP response time, including failed requests"
+      },
+      "embedding_cache": {
+        "hits": 0,
+        "misses": 0,
+        "disabled_requests": 1570,
+        "hit_rate": null,
+        "inference_query_submissions": 1570,
+        "unique_missed_queries": 0,
+        "evicted_entries": 0,
+        "expired_entries": 0,
+        "peak_process_cache_entries": 0,
+        "peak_process_cache_vector_bytes": 0,
+        "groups": {
+          "hit": {
+            "requests": 0,
+            "client_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "embedding_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "milvus_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            }
+          },
+          "miss": {
+            "requests": 0,
+            "client_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "embedding_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "milvus_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            }
+          },
+          "disabled": {
+            "requests": 1570,
+            "client_latency": {
+              "count": 1570,
+              "p50_ms": 86.54479146935046,
+              "p95_ms": 102.98802260658704,
+              "p99_ms": 110.56121145375073
+            },
+            "embedding_latency": {
+              "count": 1570,
+              "p50_ms": 62.15854157926515,
+              "p95_ms": 74.52047847909853,
+              "p99_ms": 80.37414906546472
+            },
+            "milvus_latency": {
+              "count": 1570,
+              "p50_ms": 8.68933298625052,
+              "p95_ms": 13.357095490209755,
+              "p99_ms": 16.197561513399698
+            }
+          }
+        },
+        "scope": "successful measured requests only; vector_bytes excludes Python/key overhead; entry/byte peaks cover the whole API process including other run namespaces; no single-flight for concurrent misses"
+      },
+      "diagnostics_complete": true,
+      "artifacts_complete": true
+    },
+    {
+      "users": 5,
+      "scenario": "cold",
+      "run_id": "20261005T173022_transformers_v4571_baseline_60_incremental_retri_1cd69f3e0d",
+      "status": "SUCCESS",
+      "exit_code": 0,
+      "metrics": {
+        "checkpoint_epoch": 1791221497.823893,
+        "final_snapshot": true,
+        "measurement_started": true,
+        "measurement_start_epoch": 1791221437.6663291,
+        "measurement_finished": true,
+        "measurement_start_users": 5,
+        "actual_warmup_seconds": 15.04748649999965,
+        "measurement_abort_reason": null,
+        "measured_elapsed_seconds": 60.15756273269653,
+        "timing_scope": "requests completed after warmup reset, including shutdown drain",
+        "total_requests": 2387,
+        "successful_requests": 2387,
+        "failed_requests": 0,
+        "timeout_requests": 0,
+        "actual_qps": 39.679134119950476,
+        "successful_qps": 39.679134119950476,
+        "error_rate": 0.0,
+        "actual_p50_latency_ms": 22,
+        "actual_p95_latency_ms": 29,
+        "actual_p99_latency_ms": 71,
+        "latency_scope": "client-observed retrieval HTTP response time, including failed requests"
+      },
+      "embedding_cache": {
+        "hits": 2326,
+        "misses": 61,
+        "disabled_requests": 0,
+        "hit_rate": 0.9744449099287809,
+        "inference_query_submissions": 61,
+        "unique_missed_queries": 60,
+        "evicted_entries": 0,
+        "expired_entries": 0,
+        "peak_process_cache_entries": 123,
+        "peak_process_cache_vector_bytes": 503808,
+        "groups": {
+          "hit": {
+            "requests": 2326,
+            "client_latency": {
+              "count": 2326,
+              "p50_ms": 22.229666996281594,
+              "p95_ms": 28.211521304911003,
+              "p99_ms": 29.842968797311187
+            },
+            "embedding_latency": {
+              "count": 2326,
+              "p50_ms": 0.03574998117983341,
+              "p95_ms": 0.07170878234319389,
+              "p99_ms": 0.09536423021927476
+            },
+            "milvus_latency": {
+              "count": 2326,
+              "p50_ms": 6.121041544247419,
+              "p95_ms": 9.131167229497805,
+              "p99_ms": 10.566979442955926
+            }
+          },
+          "miss": {
+            "requests": 61,
+            "client_latency": {
+              "count": 61,
+              "p50_ms": 65.96912501845509,
+              "p95_ms": 120.15112501103431,
+              "p99_ms": 121.51456722058356
+            },
+            "embedding_latency": {
+              "count": 61,
+              "p50_ms": 51.04470893274993,
+              "p95_ms": 97.4039169959724,
+              "p99_ms": 98.06939978152514
+            },
+            "milvus_latency": {
+              "count": 61,
+              "p50_ms": 5.397749948315322,
+              "p95_ms": 10.019582929089665,
+              "p99_ms": 11.568866390734911
+            }
+          },
+          "disabled": {
+            "requests": 0,
+            "client_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "embedding_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "milvus_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            }
+          }
+        },
+        "scope": "successful measured requests only; vector_bytes excludes Python/key overhead; entry/byte peaks cover the whole API process including other run namespaces; no single-flight for concurrent misses"
+      },
+      "diagnostics_complete": true,
+      "artifacts_complete": true
+    },
+    {
+      "users": 5,
+      "scenario": "hot",
+      "run_id": "20261005T173142_transformers_v4571_baseline_60_incremental_retri_cb8d71aa0b",
+      "status": "PARTIAL",
+      "exit_code": 1,
+      "metrics": {
+        "checkpoint_epoch": 1791221581.588554,
+        "final_snapshot": true,
+        "measurement_started": true,
+        "measurement_start_epoch": 1791221521.3937888,
+        "measurement_finished": true,
+        "measurement_start_users": 5,
+        "actual_warmup_seconds": 15.062308708089404,
+        "measurement_abort_reason": null,
+        "measured_elapsed_seconds": 60.194764137268066,
+        "timing_scope": "requests completed after warmup reset, including shutdown drain",
+        "total_requests": 2415,
+        "successful_requests": 2415,
+        "failed_requests": 0,
+        "timeout_requests": 0,
+        "actual_qps": 40.11976846512492,
+        "successful_qps": 40.11976846512492,
+        "error_rate": 0.0,
+        "actual_p50_latency_ms": 22,
+        "actual_p95_latency_ms": 28,
+        "actual_p99_latency_ms": 30,
+        "latency_scope": "client-observed retrieval HTTP response time, including failed requests"
+      },
+      "embedding_cache": {
+        "hits": 2415,
+        "misses": 0,
+        "disabled_requests": 0,
+        "hit_rate": 1.0,
+        "inference_query_submissions": 0,
+        "unique_missed_queries": 0,
+        "evicted_entries": 0,
+        "expired_entries": 0,
+        "peak_process_cache_entries": 243,
+        "peak_process_cache_vector_bytes": 995328,
+        "groups": {
+          "hit": {
+            "requests": 2415,
+            "client_latency": {
+              "count": 2415,
+              "p50_ms": 21.822583046741784,
+              "p95_ms": 28.106737590860572,
+              "p99_ms": 29.98482084600257
+            },
+            "embedding_latency": {
+              "count": 2415,
+              "p50_ms": 0.03558292519301176,
+              "p95_ms": 0.07049205014482134,
+              "p99_ms": 0.09985742857679726
+            },
+            "milvus_latency": {
+              "count": 2415,
+              "p50_ms": 6.237333989702165,
+              "p95_ms": 9.239425137639046,
+              "p99_ms": 10.743368102703249
+            }
+          },
+          "miss": {
+            "requests": 0,
+            "client_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "embedding_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "milvus_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            }
+          },
+          "disabled": {
+            "requests": 0,
+            "client_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "embedding_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            },
+            "milvus_latency": {
+              "count": 0,
+              "p50_ms": null,
+              "p95_ms": null,
+              "p99_ms": null
+            }
+          }
+        },
+        "scope": "successful measured requests only; vector_bytes excludes Python/key overhead; entry/byte peaks cover the whole API process including other run namespaces; no single-flight for concurrent misses"
+      },
+      "diagnostics_complete": false,
+      "artifacts_complete": true
+    }
+  ],
+  "interruption_reason": "5-user hot trial resource sampling gap 5.338s exceeded 5s; all request/cache data and artifacts intact. Retained PARTIAL. Docker/process sampling decoupled before formal rerun."
+}

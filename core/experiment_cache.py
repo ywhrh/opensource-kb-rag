@@ -9,6 +9,8 @@ import yaml
 def signature(config, kind, source_id, knowledge_base, dataset=None, query=None, queries=None):
     config = deepcopy(config)
     config.pop('experiment', None)
+    if not config.get('vector_search', {}).get('query_cache', {}).get('enabled', False):
+        config.get('vector_search', {}).pop('query_cache', None)
     # Historical snapshots omitted this field; omitted and explicit CPU are equivalent.
     if not config.get('vector_search', {}).get('query_batching', {}).get('enabled', False):
         config.get('vector_search', {}).pop('query_batching', None)

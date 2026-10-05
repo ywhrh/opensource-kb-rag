@@ -1,0 +1,269 @@
+{
+  "scope": "3 real retrieval miss/hit pairs; exact evidence including scores compared; not RAGAS",
+  "cases": [
+    {
+      "query_index": 0,
+      "evidence_identical": true,
+      "miss_diagnostics": {
+        "request_id": "d2b04b04dc8944a9b01ee0b8587955dc",
+        "load_test_id": "cache_validation_a8f584419a044dac8b2c4e511e39e4b1",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 6.489916006103158,
+          "index_validation_ms": 20.639625028707087,
+          "embedding_cache_lookup_ms": 0.002540997229516506,
+          "embedding_queue_wait_ms": 12.567541096359491,
+          "embedding_batch_compute_ms": 128.1822919845581,
+          "embedding_cache_store_ms": 0.03774999640882015,
+          "embedding_ms": 4352.016084012575,
+          "vector_db_search_ms": 8.692666888237,
+          "vector_task_ms": 4360.8445840654895,
+          "evidence_selection_ms": 0.06383296567946672,
+          "server_retrieve_ms": 4381.579290959053
+        },
+        "embedding_cache_scope": "cache_validation_a8f584419a044dac8b2c4e511e39e4b1:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221295.915157,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": false,
+          "expired_entries": 0,
+          "entries": 1,
+          "vector_bytes": 4096,
+          "evicted_entries": 0,
+          "inference_executed": true
+        },
+        "batching": {
+          "batch_id": "9cce02886b6c48f0b941a78ba7049b9f",
+          "batch_size": 1,
+          "batch_index": 0,
+          "queue_depth_at_enqueue": 0,
+          "queue_wait_ms": 12.567541096359491,
+          "collection_wait_ms": 12.551583000458777,
+          "compute_ms": 128.1822919845581
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      },
+      "hit_diagnostics": {
+        "request_id": "c5aa4a9ca8e34a56ad816724767ffc88",
+        "load_test_id": "cache_validation_a8f584419a044dac8b2c4e511e39e4b1",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 0.09175005834549665,
+          "index_validation_ms": 2.1671249996870756,
+          "embedding_cache_lookup_ms": 0.009874929673969746,
+          "embedding_ms": 0.0362499849870801,
+          "vector_db_search_ms": 3.9806669810786843,
+          "vector_task_ms": 4.09820897039026,
+          "evidence_selection_ms": 0.04241708666086197,
+          "server_retrieve_ms": 6.314917001873255
+        },
+        "embedding_cache_scope": "cache_validation_a8f584419a044dac8b2c4e511e39e4b1:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221300.300664,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": true,
+          "expired_entries": 0,
+          "entries": 1,
+          "vector_bytes": 4096,
+          "evicted_entries": 0,
+          "inference_executed": false
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      }
+    },
+    {
+      "query_index": 20,
+      "evidence_identical": true,
+      "miss_diagnostics": {
+        "request_id": "b48524ab603946ecbbe6c153791a8b9b",
+        "load_test_id": "cache_validation_627f4519fa4a4c52b2dea31fd488bd54",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 0.06374996155500412,
+          "index_validation_ms": 1.9851250108331442,
+          "embedding_cache_lookup_ms": 0.001583946868777275,
+          "embedding_queue_wait_ms": 11.092750006355345,
+          "embedding_batch_compute_ms": 20.06829099263996,
+          "embedding_cache_store_ms": 0.010416028089821339,
+          "embedding_ms": 31.306499964557588,
+          "vector_db_search_ms": 5.732791032642126,
+          "vector_task_ms": 37.13291697204113,
+          "evidence_selection_ms": 0.05170796066522598,
+          "server_retrieve_ms": 39.17662508320063
+        },
+        "embedding_cache_scope": "cache_validation_627f4519fa4a4c52b2dea31fd488bd54:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221300.308948,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": false,
+          "expired_entries": 0,
+          "entries": 2,
+          "vector_bytes": 8192,
+          "evicted_entries": 0,
+          "inference_executed": true
+        },
+        "batching": {
+          "batch_id": "868cc6d4f1404ac4bf4c362ca59fdd82",
+          "batch_size": 1,
+          "batch_index": 0,
+          "queue_depth_at_enqueue": 0,
+          "queue_wait_ms": 11.092750006355345,
+          "collection_wait_ms": 11.07679191045463,
+          "compute_ms": 20.06829099263996
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      },
+      "hit_diagnostics": {
+        "request_id": "23ddde25b880480089619c96deea069e",
+        "load_test_id": "cache_validation_627f4519fa4a4c52b2dea31fd488bd54",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 0.07466599345207214,
+          "index_validation_ms": 2.6208750205114484,
+          "embedding_cache_lookup_ms": 0.008958042599260807,
+          "embedding_ms": 0.03287498839199543,
+          "vector_db_search_ms": 3.089584060944617,
+          "vector_task_ms": 3.222458064556122,
+          "evidence_selection_ms": 0.057165976613759995,
+          "server_retrieve_ms": 5.909958039410412
+        },
+        "embedding_cache_scope": "cache_validation_627f4519fa4a4c52b2dea31fd488bd54:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221300.3506482,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": true,
+          "expired_entries": 0,
+          "entries": 2,
+          "vector_bytes": 8192,
+          "evicted_entries": 0,
+          "inference_executed": false
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      }
+    },
+    {
+      "query_index": 40,
+      "evidence_identical": true,
+      "miss_diagnostics": {
+        "request_id": "9a221d7bb5534523a1e5eda3452958c7",
+        "load_test_id": "cache_validation_9059147e57dc46689f6ea0a6626b9bab",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 0.0801250571385026,
+          "index_validation_ms": 1.930000027641654,
+          "embedding_cache_lookup_ms": 0.001583946868777275,
+          "embedding_queue_wait_ms": 11.014417046681046,
+          "embedding_batch_compute_ms": 22.524500032886863,
+          "embedding_cache_store_ms": 0.008541974239051342,
+          "embedding_ms": 33.630791935138404,
+          "vector_db_search_ms": 3.7449588999152184,
+          "vector_task_ms": 37.48924995306879,
+          "evidence_selection_ms": 0.06037496495991945,
+          "server_retrieve_ms": 39.489416987635195
+        },
+        "embedding_cache_scope": "cache_validation_9059147e57dc46689f6ea0a6626b9bab:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221300.3590112,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": false,
+          "expired_entries": 0,
+          "entries": 3,
+          "vector_bytes": 12288,
+          "evicted_entries": 0,
+          "inference_executed": true
+        },
+        "batching": {
+          "batch_id": "28c39d679d9f45028558160de6d13ff7",
+          "batch_size": 1,
+          "batch_index": 0,
+          "queue_depth_at_enqueue": 0,
+          "queue_wait_ms": 11.014417046681046,
+          "collection_wait_ms": 10.999917052686214,
+          "compute_ms": 22.524500032886863
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      },
+      "hit_diagnostics": {
+        "request_id": "e92e086b3cfa48629b46db398a8501f8",
+        "load_test_id": "cache_validation_9059147e57dc46689f6ea0a6626b9bab",
+        "timings_ms": {
+          "api_worker_queue_wait_ms": 0.08466700091958046,
+          "index_validation_ms": 2.137291943654418,
+          "embedding_cache_lookup_ms": 0.008125090971589088,
+          "embedding_ms": 0.0274579506367445,
+          "vector_db_search_ms": 2.7036250103265047,
+          "vector_task_ms": 2.829040982760489,
+          "evidence_selection_ms": 0.05625002086162567,
+          "server_retrieve_ms": 5.032332963310182
+        },
+        "embedding_cache_scope": "cache_validation_9059147e57dc46689f6ea0a6626b9bab:measurement",
+        "embedding_device": "mps",
+        "version": 1,
+        "timestamp": 1791221300.40106,
+        "mode": "vector_only",
+        "embedding_cache": {
+          "enabled": true,
+          "hit": true,
+          "expired_entries": 0,
+          "entries": 3,
+          "vector_bytes": 12288,
+          "evicted_entries": 0,
+          "inference_executed": false
+        },
+        "candidate_count_before_rerank": 50,
+        "status": "SUCCESS",
+        "evidence_count": 5,
+        "collection": "rag_0ad5fb6330c120d86100faef_54191245",
+        "device_metrics": {
+          "mps_allocated_bytes": 2288370176,
+          "mps_driver_allocated_bytes": 3198894080
+        }
+      }
+    }
+  ]
+}
