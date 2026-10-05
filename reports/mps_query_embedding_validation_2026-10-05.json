@@ -1,0 +1,73 @@
+{
+  "scope": "3 sampled questions, not a complete RAGAS quality evaluation",
+  "model": "BAAI/bge-m3",
+  "shape": [
+    3,
+    1024
+  ],
+  "finite_vectors": true,
+  "mps_normalization": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "checks": [
+    {
+      "query_index": 0,
+      "vector_cosine": 1.0000001192092896,
+      "cpu_chunk_ids": [
+        "ab640e4939de707501673c3d_95920ec7d87243b4",
+        "ab640e4939de707501673c3d_3ce48506cc5e8c85",
+        "7b000f4c9f028a4eb28c2bcf_43d874a00742aa89",
+        "7b000f4c9f028a4eb28c2bcf_4f3a4ef28bcebf49",
+        "7b000f4c9f028a4eb28c2bcf_1972a2aad3fd4ea1"
+      ],
+      "mps_chunk_ids": [
+        "ab640e4939de707501673c3d_95920ec7d87243b4",
+        "ab640e4939de707501673c3d_3ce48506cc5e8c85",
+        "7b000f4c9f028a4eb28c2bcf_43d874a00742aa89",
+        "7b000f4c9f028a4eb28c2bcf_4f3a4ef28bcebf49",
+        "7b000f4c9f028a4eb28c2bcf_1972a2aad3fd4ea1"
+      ],
+      "identical_order": true
+    },
+    {
+      "query_index": 20,
+      "vector_cosine": 1.0000001192092896,
+      "cpu_chunk_ids": [
+        "cacc3608c636b069f5643065_07f7bbe1def7fca6",
+        "96b3fa6d18bf59442ac4ae89_03fb26a197e46f26",
+        "cacc3608c636b069f5643065_4a50be405515b44d",
+        "96b3fa6d18bf59442ac4ae89_5659b3f00a520b98",
+        "96b3fa6d18bf59442ac4ae89_a9d256b39e63dd36"
+      ],
+      "mps_chunk_ids": [
+        "cacc3608c636b069f5643065_07f7bbe1def7fca6",
+        "96b3fa6d18bf59442ac4ae89_03fb26a197e46f26",
+        "cacc3608c636b069f5643065_4a50be405515b44d",
+        "96b3fa6d18bf59442ac4ae89_5659b3f00a520b98",
+        "96b3fa6d18bf59442ac4ae89_a9d256b39e63dd36"
+      ],
+      "identical_order": true
+    },
+    {
+      "query_index": 40,
+      "vector_cosine": 1.0,
+      "cpu_chunk_ids": [
+        "96b3fa6d18bf59442ac4ae89_1aaa1a293aad9c86",
+        "96b3fa6d18bf59442ac4ae89_8c2c7d5120cf4c5f",
+        "96b3fa6d18bf59442ac4ae89_3822785947bac6e4",
+        "96b3fa6d18bf59442ac4ae89_ae0bb0093fb5f9ee",
+        "96b3fa6d18bf59442ac4ae89_2c8e205fbb3d49bc"
+      ],
+      "mps_chunk_ids": [
+        "96b3fa6d18bf59442ac4ae89_1aaa1a293aad9c86",
+        "96b3fa6d18bf59442ac4ae89_8c2c7d5120cf4c5f",
+        "96b3fa6d18bf59442ac4ae89_3822785947bac6e4",
+        "96b3fa6d18bf59442ac4ae89_ae0bb0093fb5f9ee",
+        "96b3fa6d18bf59442ac4ae89_2c8e205fbb3d49bc"
+      ],
+      "identical_order": true
+    }
+  ]
+}

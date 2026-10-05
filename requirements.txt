@@ -18,3 +18,4 @@ langchain-community==0.3.31
 langchain-ollama>=0.3,<2
 langchain-openai>=0.3,<2
 locust>=2.37,<3
+psutil>=7,<8

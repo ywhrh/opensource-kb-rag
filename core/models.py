@@ -23,10 +23,10 @@ def provider_key(credentials, provider):
 
 
 @lru_cache(maxsize=2)
-def embedding_model(name):
+def embedding_model(name, device='cpu'):
     from sentence_transformers import SentenceTransformer
     with _MODEL_LOCK:
-        return SentenceTransformer(name, cache_folder=str(ROOT / 'data' / 'models'), device='cpu')
+        return SentenceTransformer(name, cache_folder=str(ROOT / 'data' / 'models'), device=device)
 
 
 def embed(texts, config, credentials=None, query=False):
@@ -41,7 +41,16 @@ def embed(texts, config, credentials=None, query=False):
         return np.asarray(vectors, dtype=np.float32)
     if query and name == 'BAAI/bge-large-en-v1.5':
         texts = ['Represent this sentence for searching relevant passages: ' + text for text in texts]
-    model = embedding_model(name)
+    device = config.vector_search.query_device if query else 'cpu'
+    if device == 'mps':
+        import torch
+        if not torch.backends.mps.is_available():
+            raise ValueError('MPS query embedding was requested but is unavailable')
+        if os.getenv('PYTORCH_ENABLE_MPS_FALLBACK') == '1':
+            raise ValueError('Disable CPU fallback for the MPS experiment')
+    model = embedding_model(name, device)
+    if model.device.type != device:
+        raise ValueError('Embedding model is not on the requested device')
     return model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False, convert_to_numpy=True)
 
 

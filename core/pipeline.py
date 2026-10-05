@@ -1,10 +1,12 @@
 """Shared retrieval/generation flow; Live Run never invokes evaluation or load testing."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from time import perf_counter
+from time import perf_counter, time
+from uuid import uuid4
 
 from core.history import new_output, persist
 from core.logger import event
+from core.profiling import DIAGNOSTICS_VERSION, timed, record_trace
 from core.models import SYSTEM_PROMPT, chat_tokens
 from ingestion.vector_store_writer import require_index
 from retrieval.vector_search import vector_search
@@ -12,33 +14,78 @@ from retrieval.bm25_search import bm25_search
 from retrieval.hybrid_fusion import fuse
 from retrieval.reranker import rerank
 
-_SEARCH_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix='retrieval')
+SEARCH_POOL_WORKERS = 4
+_SEARCH_POOL = ThreadPoolExecutor(max_workers=SEARCH_POOL_WORKERS, thread_name_prefix='retrieval')
 
 
-def retrieve(query, source_id, config, credentials=None, expected_collection=None):
-    manifest = require_index(config, source_id)
-    if expected_collection and manifest['collection_name'] != expected_collection:
-        raise ValueError('The index changed during this experiment. Start a new run using the updated index.')
+def _search_task(submitted, name, stage_timings, operation, *args, **kwargs):
+    stage_timings[name + '_queue_wait_ms'] = (perf_counter() - submitted) * 1000
+    with timed(stage_timings, name + '_task_ms'):
+        return operation(*args, **kwargs)
+
+
+def retrieve(query, source_id, config, credentials=None, expected_collection=None, diagnostics=None):
+    trace = diagnostics if diagnostics is not None else {'request_id': uuid4().hex}
+    trace['embedding_device'] = config.vector_search.query_device
+    trace.update(version=DIAGNOSTICS_VERSION, timestamp=time(), mode=config.retrieval_pipeline.mode)
+    timings = trace.setdefault('timings_ms', {})
     started = perf_counter()
-    if config.retrieval_pipeline.mode == 'vector_only':
-        candidates = vector_search(query, manifest['collection_name'], config, credentials)
-    else:
-        dense = _SEARCH_POOL.submit(vector_search, query, manifest['collection_name'], config, credentials)
-        sparse = _SEARCH_POOL.submit(bm25_search, query, manifest['collection_name'], config)
-        candidates = fuse(dense.result(), sparse.result(), config.hybrid_fusion)
-    if config.retrieval_pipeline.mode == 'hybrid_rerank':
-        candidates = rerank(query, candidates, config.rerank, credentials)
-    selected, used = [], 0
-    for row in candidates:
-        if len(selected) >= config.generation.context_top_k:
-            break
-        if used + len(row['text']) > config.generation.max_context_chars:
-            continue
-        selected.append(deepcopy(row))
-        used += len(row['text'])
-    elapsed = (perf_counter() - started) * 1000
-    return {'evidence_chunks': selected, 'retrieval_latency_ms': elapsed, 'knowledge_base': manifest,
-            'retrieved_candidates': len(candidates)}
+    try:
+        with timed(timings, 'index_validation_ms'):
+            manifest = require_index(config, source_id)
+            if expected_collection and manifest['collection_name'] != expected_collection:
+                raise ValueError('The index changed during this experiment. Start a new run using the updated index.')
+        retrieval_started = perf_counter()
+        if config.retrieval_pipeline.mode == 'vector_only':
+            with timed(timings, 'vector_task_ms'):
+                candidates = vector_search(query, manifest['collection_name'], config, credentials, timings=timings)
+        else:
+            dense = _SEARCH_POOL.submit(_search_task, perf_counter(), 'vector', timings,
+                vector_search, query, manifest['collection_name'], config, credentials, timings=timings)
+            sparse = _SEARCH_POOL.submit(_search_task, perf_counter(), 'bm25', timings,
+                bm25_search, query, manifest['collection_name'], config)
+            # Await both tasks, including on failure, before logging the shared timing map.
+            dense_error = None
+            try:
+                dense_rows = dense.result()
+            except Exception as exc:
+                dense_error = exc
+            sparse_rows = sparse.result()
+            if dense_error:
+                raise dense_error
+            with timed(timings, 'fusion_ms'):
+                candidates = fuse(dense_rows, sparse_rows, config.hybrid_fusion)
+        trace['candidate_count_before_rerank'] = len(candidates)
+        if config.retrieval_pipeline.mode == 'hybrid_rerank':
+            with timed(timings, 'rerank_ms'):
+                candidates = rerank(query, candidates, config.rerank, credentials)
+        selected, used = [], 0
+        with timed(timings, 'evidence_selection_ms'):
+            for row in candidates:
+                if len(selected) >= config.generation.context_top_k:
+                    break
+                if used + len(row['text']) > config.generation.max_context_chars:
+                    continue
+                selected.append(deepcopy(row))
+                used += len(row['text'])
+        elapsed = (perf_counter() - retrieval_started) * 1000
+        trace.update(status='SUCCESS', evidence_count=len(selected), collection=manifest['collection_name'])
+        return {'evidence_chunks': selected, 'retrieval_latency_ms': elapsed, 'knowledge_base': manifest,
+                'retrieved_candidates': len(candidates), 'diagnostics': trace}
+    except Exception as exc:
+        import traceback
+        from pathlib import Path
+        trace.update(status='FAILED', error_type=type(exc).__name__,
+                     error_frames=[{'file': Path(frame.filename).name, 'line': frame.lineno, 'function': frame.name}
+                                   for frame in traceback.extract_tb(exc.__traceback__)][-12:])
+        raise
+    finally:
+        timings['server_retrieve_ms'] = (perf_counter() - started) * 1000
+        if config.vector_search.query_device == 'mps':
+            import torch
+            trace['device_metrics'] = {'mps_allocated_bytes': torch.mps.current_allocated_memory(),
+                                       'mps_driver_allocated_bytes': torch.mps.driver_allocated_memory()}
+        record_trace(trace)
 
 
 def run_events(query, source_id, config, credentials=None, save=True, expected_collection=None):

@@ -110,6 +110,7 @@ class Quantization(Model):
 
 
 class VectorSearch(Model):
+    query_device: Literal['cpu', 'mps'] = 'cpu'  # Query inference only; index embeddings stay unchanged.
     enabled: bool = True
     model_name: Literal['BAAI/bge-large-en-v1.5', 'BAAI/bge-m3', 'text-embedding-3-small'] = 'BAAI/bge-large-en-v1.5'
     top_k: int = Field(default=50, ge=1, le=1000)

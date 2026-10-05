@@ -13,6 +13,6 @@ data/jobs/
 data/logs/
 *.egg-info/
 .config.lock
-
+reports/*.md
 # Local provider credentials and atomic temporary files
 .secrets/

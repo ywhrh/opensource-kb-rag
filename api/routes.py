@@ -3,12 +3,15 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
+from time import perf_counter
+import anyio
 from pathlib import Path
 import shutil
 from uuid import uuid4
 
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, File, UploadFile, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 import httpx
 import yaml
 
@@ -17,10 +20,14 @@ from core.config_loader import ROOT, load_config, revision, save_config, config_
 from core.history import folder
 from core.jobs import submit, get_job
 from core.load_testing import run_load_test
-from core.pipeline import retrieve, run_events, run_query
+from core.pipeline import retrieve, run_events, run_query, SEARCH_POOL_WORKERS
 from ingestion.loader import SUPPORTED
 from ingestion.vector_store_writer import index_source, client, require_index
 
+from core.profiling import source_metadata
+
+# Capture once at import so diagnostics describe this service process, not later disk edits.
+BACKEND_SOURCE = source_metadata()
 router = APIRouter()
 
 
@@ -114,12 +121,38 @@ def ingest(request: IngestRequest):
         raise bad_request(exc)
 
 
+@router.get('/diagnostics')
+async def diagnostics_info():
+    import platform
+    import psutil
+    from core.profiling import DIAGNOSTICS_VERSION
+    limiter = anyio.to_thread.current_default_thread_limiter()
+    return {'diagnostics_version': DIAGNOSTICS_VERSION, 'backend_source': BACKEND_SOURCE, 'api_pid': os.getpid(),
+            'logical_cpus': psutil.cpu_count(), 'memory_bytes': psutil.virtual_memory().total,
+            'platform': platform.platform(), 'api_worker_tokens': limiter.total_tokens,
+            'search_pool_workers': SEARCH_POOL_WORKERS, 'pid_scope': 'local API process',
+            'timing_scope': 'worker dispatch wait plus server retrieval stages; HTTP serialization is not a retrieval stage'}
+
+
 @router.post('/retrieve')
-def retrieval(request: RunRequest):
+async def retrieval(request: RunRequest, http_request: Request):
+    run_id = http_request.headers.get('X-Load-Test-Id', '')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,160}', run_id):
+        run_id = None
+    request_id = http_request.headers.get('X-Request-Id', '')
+    if not re.fullmatch(r'[a-f0-9]{32}', request_id):
+        request_id = uuid4().hex
+    trace = {'request_id': request_id, 'load_test_id': run_id, 'timings_ms': {}}
+    submitted = perf_counter()
+    def execute():
+        trace['timings_ms']['api_worker_queue_wait_ms'] = (perf_counter() - submitted) * 1000
+        return retrieve(request.query, request.source_id, request.config_snapshot or load_config(),
+                        request.credentials, request.index_collection, diagnostics=trace)
     try:
-        return retrieve(request.query, request.source_id, request.config_snapshot or load_config(), request.credentials, request.index_collection)
+        return await anyio.to_thread.run_sync(execute)
     except Exception as exc:
-        raise bad_request(exc)
+        error = bad_request(exc)
+        return JSONResponse(status_code=error.status_code, content={'detail': error.detail, 'diagnostics': trace})
 
 
 @router.post('/query')
