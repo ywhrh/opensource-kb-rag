@@ -172,6 +172,7 @@ def write_report(record, prefix):
     lines = ['# Retrieval load diagnostics', '', '## Tuning round — changes in this run', '',
              f"Round: {tuning.get('label', 'Not recorded')}",
              f"Comparison baseline: {tuning.get('baseline_run_id') or 'Not specified'}",
+             f"Measurement accounting note: {tuning.get('accounting_note') or 'None'}",
              f"Hypothesis (not a measured conclusion): {tuning.get('hypothesis') or 'Not specified'}", '']
     changes = tuning.get('changes') or []
     if changes:

@@ -9,6 +9,9 @@ import yaml
 def signature(config, kind, source_id, knowledge_base, dataset=None, query=None, queries=None):
     config = deepcopy(config)
     config.pop('experiment', None)
+    # Historical snapshots omitted this field; omitted and explicit CPU are equivalent.
+    if config.get('vector_search', {}).get('query_device', 'cpu') == 'cpu':
+        config.get('vector_search', {}).pop('query_device', None)
     config.pop('load_testing' if kind != 'load_test' else 'evaluation', None)
     if kind == 'live_run':
         config.pop('evaluation', None)

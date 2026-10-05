@@ -13,7 +13,7 @@ from pathlib import Path
 # Update these notes for every user-authorized tuning round before launching a run.
 TUNING_ROUND = {
     'label': 'query_embedding_cpu_to_mps',
-    'baseline_run_id': '20261004T232636_transformers_v4571_baseline_60_incremental_retri_aa973ea8b3',
+    'baseline_run_id': '20261004T232138_transformers_v4571_baseline_60_incremental_retri_c2bd37f6f0',
     'changes': [{'parameter': 'vector_search.query_device', 'before': 'cpu', 'after': 'mps'}],
     'accounting_note': 'Requests cancelled by Locust before receiving a response are recorded separately and excluded from completed-request QPS/errors. The initial MPS trial was retained as PARTIAL.',
     'hypothesis': 'Moving query embedding to Apple GPU may improve throughput and reduce CPU pressure; measured outcome pending.',
@@ -25,7 +25,7 @@ ENDPOINT = '/retrieve'
 EXPERIMENT_INPUT_PATH = 'data/experiments_history/20261004T013927_transformers_v4571_baseline_60_incremental_vecto_b2974b990a_input.yaml'
 SOURCE_ID = 'project'                 # Used when EXPERIMENT_INPUT_PATH is None.
 QUESTIONS_PATH = 'data/golden_test_dataset.json'
-USERS = 10
+USERS = 20
 QUERY_EMBEDDING_DEVICE = 'mps'
 SPAWN_RATE = 2.0                     # New users per second, not request QPS.
 WAIT_TIME_SECONDS = 0.1              # Delay after a response, before the next request.
