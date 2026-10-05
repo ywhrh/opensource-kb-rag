@@ -4,9 +4,9 @@ from core.models import embed
 from ingestion.vector_store_writer import client, FIELDS
 
 
-def vector_search(query, collection_name, config, credentials=None, timings=None):
+def vector_search(query, collection_name, config, credentials=None, timings=None, diagnostics=None):
     with timed(timings, 'embedding_ms'):
-        vector = embed([query], config, credentials, query=True)[0].tolist()
+        vector = embed([query], config, credentials, query=True, timings=timings, diagnostics=diagnostics)[0].tolist()
     settings = config.vector_search
     params = {'ef': settings.hnsw_params.ef} if settings.index_type == 'HNSW' else {'nprobe': settings.ivf_params.nprobe}
     with timed(timings, 'vector_db_search_ms'):

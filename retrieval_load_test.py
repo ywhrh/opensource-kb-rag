@@ -12,11 +12,11 @@ from pathlib import Path
 # --------------------------- EDIT CONFIG HERE ---------------------------
 # Update these notes for every user-authorized tuning round before launching a run.
 TUNING_ROUND = {
-    'label': 'query_embedding_cpu_to_mps',
-    'baseline_run_id': '20261004T232138_transformers_v4571_baseline_60_incremental_retri_c2bd37f6f0',
-    'changes': [{'parameter': 'vector_search.query_device', 'before': 'cpu', 'after': 'mps'}],
+    'label': 'mps_dynamic_batching_8_10ms',
+    'baseline_run_id': '20261005T133318_transformers_v4571_baseline_60_incremental_retri_8d7921ffcf',
+    'changes': [{'parameter': 'vector_search.query_batching', 'before': {'enabled': False}, 'after': {'enabled': True, 'max_size': 8, 'wait_ms': 10, 'queue_capacity': 128, 'timeout_seconds': 30}}, {'parameter': 'embedding_batch_workers_per_config', 'before': 'independent request inference', 'after': 1}],
     'accounting_note': 'Requests cancelled by Locust before receiving a response are recorded separately and excluded from completed-request QPS/errors. The initial MPS trial was retained as PARTIAL.',
-    'hypothesis': 'Moving query embedding to Apple GPU may improve throughput and reduce CPU pressure; measured outcome pending.',
+    'hypothesis': 'Batching MPS queries may improve throughput by combining inference calls; queueing may worsen latency. Compare with the same-user MPS baseline.',
 }
 
 API_HOST = 'http://127.0.0.1:8000'
@@ -26,6 +26,7 @@ EXPERIMENT_INPUT_PATH = 'data/experiments_history/20261004T013927_transformers_v
 SOURCE_ID = 'project'                 # Used when EXPERIMENT_INPUT_PATH is None.
 QUESTIONS_PATH = 'data/golden_test_dataset.json'
 USERS = 20
+QUERY_BATCHING = {'enabled': True, 'max_size': 8, 'wait_ms': 10, 'queue_capacity': 128, 'timeout_seconds': 30}
 QUERY_EMBEDDING_DEVICE = 'mps'
 SPAWN_RATE = 2.0                     # New users per second, not request QPS.
 WAIT_TIME_SECONDS = 0.1              # Delay after a response, before the next request.
@@ -142,6 +143,11 @@ class RetrievalUser(HttpUser):
                     timings = trace.get('timings_ms') or {}
                     mode = INPUT['config_snapshot']['retrieval_pipeline']['mode']
                     required = required_stages(mode)
+                    if INPUT['config_snapshot']['vector_search']['query_batching']['enabled']:
+                        required.update({'embedding_queue_wait_ms', 'embedding_batch_compute_ms'})
+                        metadata = trace.get('batching') or {}
+                        if not isinstance(metadata.get('batch_id'), str) or not 1 <= metadata.get('batch_size', 0) <= QUERY_BATCHING['max_size']:
+                            raise ValueError('Missing batch identity or size')
                     valid = trace.get('version') == 1 and required <= timings.keys()
                     valid = valid and numeric_timings
                     valid = valid and trace.get('embedding_device') == INPUT['config_snapshot']['vector_search']['query_device']
@@ -169,6 +175,7 @@ class RetrievalUser(HttpUser):
                    'client_elapsed_ms': (time.perf_counter() - started) * 1000,
                    'timings_ms': trace.get('timings_ms', {}),
                    'embedding_device': trace.get('embedding_device'),
+                   'batching': trace.get('batching', {}),
                    'device_metrics': trace.get('device_metrics', {}),
                    'candidate_count_before_rerank': trace.get('candidate_count_before_rerank') if type(trace.get('candidate_count_before_rerank')) is int else None,
                    'evidence_count': trace.get('evidence_count') if type(trace.get('evidence_count')) is int else None}
@@ -317,6 +324,8 @@ def main():
         source = original['source_id']
     else:
         config, source = load_config(), SOURCE_ID
+    from core.config_loader import QueryBatching
+    config.vector_search.query_batching = QueryBatching.model_validate(QUERY_BATCHING)
     config.vector_search.query_device = QUERY_EMBEDDING_DEVICE
     manifest = require_index(config, source)
     if original and any(original['knowledge_base'].get(k) != manifest.get(k) for k in ('collection_name', 'source_revision')):
@@ -404,7 +413,8 @@ def run_locked(config, source, manifest, queries, credentials, keys, original, a
                 or not required_stages(config.retrieval_pipeline.mode) <= probe_timings.keys()
                 or not all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in probe_timings.values())
                 or not isinstance(probe_body.get('evidence_chunks'), list)
-                or probe_trace.get('embedding_device') != QUERY_EMBEDDING_DEVICE):
+                or probe_trace.get('embedding_device') != QUERY_EMBEDDING_DEVICE
+                or (QUERY_BATCHING['enabled'] and (not {'embedding_queue_wait_ms', 'embedding_batch_compute_ms'} <= probe_timings.keys() or not (probe_trace.get('batching') or {}).get('batch_id')))):
             raise RuntimeError('Exact-pipeline preflight did not return all required stage diagnostics')
         preflight.update(status='SUCCESS', finished_at_epoch=time.time(), client_elapsed_ms=(time.perf_counter() - preflight_started) * 1000, diagnostics=probe_trace)
         preflight_path.write_text(json.dumps(preflight, indent=2, allow_nan=False))

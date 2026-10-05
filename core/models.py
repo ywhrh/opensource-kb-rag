@@ -29,7 +29,7 @@ def embedding_model(name, device='cpu'):
         return SentenceTransformer(name, cache_folder=str(ROOT / 'data' / 'models'), device=device)
 
 
-def embed(texts, config, credentials=None, query=False):
+def embed(texts, config, credentials=None, query=False, timings=None, diagnostics=None):
     name = config.vector_search.model_name
     if name == 'text-embedding-3-small':
         from openai import OpenAI
@@ -51,6 +51,22 @@ def embed(texts, config, credentials=None, query=False):
     model = embedding_model(name, device)
     if model.device.type != device:
         raise ValueError('Embedding model is not on the requested device')
+    batching = config.vector_search.query_batching
+    if query and batching.enabled:
+        if len(texts) != 1:
+            raise ValueError('Dynamic query batching accepts one query per request')
+        from core.query_batching import batcher
+        key = (name, device, batching.max_size, batching.wait_ms, batching.queue_capacity)
+        def encode_batch(inputs):
+            return model.encode(inputs, batch_size=batching.max_size, normalize_embeddings=True,
+                                show_progress_bar=False, convert_to_numpy=True)
+        vector, metadata = batcher(key, encode_batch, batching).submit(texts[0], batching.timeout_seconds)
+        if timings is not None:
+            timings.update(embedding_queue_wait_ms=metadata['queue_wait_ms'],
+                           embedding_batch_compute_ms=metadata['compute_ms'])
+        if diagnostics is not None:
+            diagnostics['batching'] = metadata
+        return np.asarray([vector])
     return model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False, convert_to_numpy=True)
 
 

@@ -38,10 +38,10 @@ def retrieve(query, source_id, config, credentials=None, expected_collection=Non
         retrieval_started = perf_counter()
         if config.retrieval_pipeline.mode == 'vector_only':
             with timed(timings, 'vector_task_ms'):
-                candidates = vector_search(query, manifest['collection_name'], config, credentials, timings=timings)
+                candidates = vector_search(query, manifest['collection_name'], config, credentials, timings=timings, diagnostics=trace)
         else:
             dense = _SEARCH_POOL.submit(_search_task, perf_counter(), 'vector', timings,
-                vector_search, query, manifest['collection_name'], config, credentials, timings=timings)
+                vector_search, query, manifest['collection_name'], config, credentials, timings=timings, diagnostics=trace)
             sparse = _SEARCH_POOL.submit(_search_task, perf_counter(), 'bm25', timings,
                 bm25_search, query, manifest['collection_name'], config)
             # Await both tasks, including on failure, before logging the shared timing map.

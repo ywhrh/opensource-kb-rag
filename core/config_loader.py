@@ -109,7 +109,16 @@ class Quantization(Model):
     enabled: bool = False
 
 
+class QueryBatching(Model):
+    enabled: bool = False
+    max_size: int = Field(default=8, ge=1, le=32)
+    wait_ms: float = Field(default=10, ge=0, le=100)
+    queue_capacity: int = Field(default=128, ge=1, le=1024)
+    timeout_seconds: float = Field(default=30, gt=0, le=120)
+
+
 class VectorSearch(Model):
+    query_batching: QueryBatching = Field(default_factory=QueryBatching)
     query_device: Literal['cpu', 'mps'] = 'cpu'  # Query inference only; index embeddings stay unchanged.
     enabled: bool = True
     model_name: Literal['BAAI/bge-large-en-v1.5', 'BAAI/bge-m3', 'text-embedding-3-small'] = 'BAAI/bge-large-en-v1.5'
@@ -122,6 +131,8 @@ class VectorSearch(Model):
 
     @model_validator(mode='after')
     def compatible(self):
+        if self.query_batching.enabled and self.model_name == 'text-embedding-3-small':
+            raise ValueError('Dynamic query batching requires a local embedding model')
         if not self.enabled:
             raise ValueError('All supported retrieval modes require vector search')
         if self.index_type == 'HNSW' and self.hnsw_params.ef < self.top_k:

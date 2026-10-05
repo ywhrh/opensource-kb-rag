@@ -85,6 +85,7 @@ def summarize(prefix, measurement_start, measurement_end=None):
     measured_requests = 0
     cancelled_requests = 0
     device_metrics = {}
+    batches = {}
     requests_path = prefix.with_name(prefix.name + '_requests.jsonl')
     request_rows, invalid_requests = read_jsonl(requests_path)
     for row in request_rows:
@@ -99,6 +100,9 @@ def summarize(prefix, measurement_start, measurement_end=None):
             errors[key] = errors.get(key, 0) + 1
             continue
         request_count += 1
+        batch = row.get('batching') or {}
+        if batch.get('batch_id'):
+            batches[batch['batch_id']] = batch
         for key, value in row.get('device_metrics', {}).items():
             device_metrics[key] = max(device_metrics.get(key, 0), value)
         for stage, value in row.get('timings_ms', {}).items():
@@ -134,7 +138,12 @@ def summarize(prefix, measurement_start, measurement_end=None):
         summary['max_sample_gap_seconds'] = gaps(timestamps)
         summary['first_sample_delay_seconds'] = min(timestamps) - measurement_start
         summary['last_sample_age_seconds'] = (measurement_end or max(timestamps)) - max(timestamps)
-    return {'cancelled_before_response': cancelled_requests, 'device_memory_peaks': device_metrics, 'measured_requests': measured_requests, 'invalid_jsonl_lines': invalid_requests + invalid_resources, 'successful_requests_with_stage_timings': request_count, 'request_failure_reasons': errors,
+    sizes = [b['batch_size'] for b in batches.values()]
+    batch_summary = {'unique_batches': len(batches), 'mean_batch_size': sum(sizes) / len(sizes) if sizes else None,
+                     'batch_size_counts': {str(size): sizes.count(size) for size in sorted(set(sizes))},
+                     'unique_batch_compute': percentiles([b['compute_ms'] for b in batches.values()]),
+                     'scope': 'unique batches containing at least one successful measured request; batches can cross warmup boundaries; queue_wait includes collection and previous-batch execution'}
+    return {'batching': batch_summary, 'cancelled_before_response': cancelled_requests, 'device_memory_peaks': device_metrics, 'measured_requests': measured_requests, 'invalid_jsonl_lines': invalid_requests + invalid_resources, 'successful_requests_with_stage_timings': request_count, 'request_failure_reasons': errors,
             'stages': {stage: percentiles(values) for stage, values in stages.items()},
             'resources': {'max_sample_gap_seconds': gaps([r['timestamp'] for r in resource_rows]), 'samples': len(resource_rows),
                 'first_sample_delay_seconds': min((r['timestamp'] - measurement_start for r in resource_rows), default=None),
@@ -213,6 +222,8 @@ def write_report(record, prefix):
               'Inspect phase timing growth alongside CPU, memory, queues and the matched configuration. Large embedding time plus API CPU pressure supports an embedding-capacity hypothesis; growing API worker or search-pool wait supports a queue-contention hypothesis. Neither alone establishes causality. Milvus RPC time includes transport and server execution, not pure database compute. MPS memory is captured per request; GPU utilization and HTTP parsing/serialization breakdown are not collected.', '',
               f"Request samples: `{prefix.name}_requests.jsonl`", f"Resource samples: `{prefix.name}_resources.jsonl`",
               f"Diagnostic summary: `{prefix.name}_diagnostics.json`", '']
+    lines += ['', '## Dynamic batching', '', json.dumps(diagnostics.get('batching', {}), indent=2), '',
+              'Per-request embedding_batch_compute_ms describes a shared batch computation and must not be summed across requests. Queue wait includes time waiting for the worker and collecting a batch; the 10 ms collection window is not an overall queueing bound.', '']
     lines += ['', f"Cancelled before HTTP response (excluded from completed-request QPS/errors): {diagnostics.get('cancelled_before_response', 0)}", '']
     lines += ['', '## Device memory peaks', '', json.dumps(diagnostics.get('device_memory_peaks', {}), indent=2), '']
     lines += ['## Saved artifact coverage', '', json.dumps(results.get('artifacts', {}), indent=2), '',
