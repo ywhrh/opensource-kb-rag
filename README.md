@@ -14,7 +14,11 @@ A RAG system and experiment studio built for developer documentation. Ask questi
 - **Measured quality and performance.** Compare configurations on a 60-question reference set spanning semantic, keyword, and distractor questions using four RAGAS metrics. Run independent Locust benchmarks with per-stage diagnostics; optionally enable Apple MPS query embedding, bounded dynamic batching, and LRU/TTL query caching.
 - **Reproducible experiments.** Branch configurations in the tuning UI, retain config/dataset/index snapshots, and resume interrupted evaluations from saved answers and metric checkpoints.
 
+
+
 ## 2. Live Run — start locally and ask questions
+
+
 
 ### Install the project
 
@@ -70,7 +74,7 @@ Run these commands from the project directory in **two separate terminals**:
 .venv/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-Open **http://127.0.0.1:8501**. API docs are at http://127.0.0.1:8000/docs.
+Open **[http://127.0.0.1:8501](http://127.0.0.1:8501)**. API docs are at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 ### Ask your first question
 
@@ -83,8 +87,9 @@ Supported inputs: Markdown, TXT, HTML, DOCX, and text-based PDF. Scanned PDFs re
 
 **Local use:** services bind to loopback. This studio does not implement multi-user authentication or document access control; a public deployment needs a separate access layer.
 
-
 ## 3. Tuning — evaluate quality and benchmark performance
+
+
 
 ### Included golden dataset
 
@@ -112,9 +117,11 @@ Evaluation uses Ollama as its default judge. To use your OpenAI key instead, set
 .venv/bin/python evaluate_ragas.py --resume RUN_ID
 ```
 
+
+
 ### Run pressure / load tests
 
-The repository includes **`retrieval_load_test.py`**, an instrumented Locust script for retrieval throughput, P95/P99 latency, failures, per-stage timings, and process/container resource usage. It measures `/retrieve`, excluding answer generation and RAGAS scoring.
+The repository includes `retrieval_load_test.py`, an instrumented Locust script for retrieval throughput, P95/P99 latency, failures, per-stage timings, and process/container resource usage. It measures `/retrieve`, excluding answer generation and RAGAS scoring.
 
 Before running, edit the settings at the top of the script:
 
@@ -136,12 +143,16 @@ The UI also supports independent load tests targeting retrieval or complete retr
 3. For quality evaluation, save your own JSON question/reference-answer array under `data/`, then set `evaluation.dataset_path` to that file. Each item needs a unique `id`, a `category` (`semantic`, `keyword`, or `distractor`), a `question`, and a `reference_answer`. The CLI can evaluate your dataset; the tuning comparison UI is designed around the fixed 60-question set.
 4. For load tests, set `QUESTIONS_PATH` to your question dataset and configure the workload in `retrieval_load_test.py`.
 
+
+
 ### Where results are saved
 
-| Directory | Contents |
-|---|---|
+
+| Directory                   | Contents                                                                                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `data/experiments_history/` | Live-run and evaluation input/output YAML pairs, including configuration snapshots, dataset/index identity, answers, scores, and evaluation checkpoints. |
-| `data/load_test_history/` | Load-test input/output YAML pairs, metrics, Locust CSVs, logs, and instrumented request/resource artifacts. |
-| `reports/` | Selected readable summaries and exported comparison reports. Raw run results are saved in the history directories above. |
+| `data/load_test_history/`   | Load-test input/output YAML pairs, metrics, Locust CSVs, logs, and instrumented request/resource artifacts.                                              |
+| `reports/`                  | Selected readable summaries and exported comparison reports. Raw run results are saved in the history directories above.                                 |
+
 
 Each run receives a unique ID. Runtime histories are Git-ignored; the tuning UI reads saved results without automatically rerunning tests.
