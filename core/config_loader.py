@@ -186,6 +186,7 @@ class Rerank(Model):
     enabled: bool = True
     model_name: Literal['bge-reranker-base', 'Cohere Rerank v3'] = 'bge-reranker-base'
     top_n: int = Field(default=20, ge=1, le=2000)
+    candidate_limit: int = Field(default=0, ge=0, le=2000)
     optimization: Optimization = Field(default_factory=Optimization)
 
 

@@ -21,6 +21,9 @@ def local_reranker(onnx):
 
 
 def rerank(query, candidates, config, credentials=None):
+    # Fusion supplies ranked candidates; cap expensive scoring before inference.
+    if config.candidate_limit:
+        candidates = candidates[:config.candidate_limit]
     if not candidates:
         return []
     if config.model_name == 'Cohere Rerank v3':

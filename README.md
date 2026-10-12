@@ -11,6 +11,13 @@ A RAG system and experiment studio built for developer documentation. Ask questi
 - **Context-rich search, original evidence.** Add document titles and section headings to searchable text while keeping evidence separate from enrichment. Answers stream alongside their original source passages.
 - **Technical metadata.** Record source identifiers, content hashes, programming-language labels, and regex-extracted API/version/code annotations. BM25 matches technical terms in searchable text; entity annotations are not retrieval filters.
 - **A second relevance pass.** Merge results with weighted fusion or reciprocal rank fusion (RRF), then optionally rerank with a BGE cross-encoder using ONNX or Cohere Rerank.
+
+`rerank.candidate_limit` caps the fusion-ranked candidates scored by the reranker
+(currently 20). `0` scores all candidates and is the default for older configs
+without this field. `rerank.top_n` controls how many scored results are retained;
+`generation.context_top_k` controls how many passages are used for answering.
+The candidate limit affects retrieval quality and latency, not the index, so
+changing it does not require reindexing.
 - **Measured quality and performance.** Compare configurations on a 60-question reference set spanning semantic, keyword, and distractor questions using four RAGAS metrics. Run independent Locust benchmarks with per-stage diagnostics; optionally enable Apple MPS query embedding, bounded dynamic batching, and LRU/TTL query caching.
 - **Reproducible experiments.** Branch configurations in the tuning UI, retain config/dataset/index snapshots, and resume interrupted evaluations from saved answers and metric checkpoints.
 

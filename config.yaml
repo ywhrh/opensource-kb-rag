@@ -59,6 +59,7 @@ rerank:
   enabled: true
   model_name: bge-reranker-base
   top_n: 20
+  candidate_limit: 20
   optimization:
     use_onnx_acceleration: true
     batch_size: 16

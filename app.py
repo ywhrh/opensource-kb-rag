@@ -243,6 +243,7 @@ def live_workspace():
                 if mode == 'hybrid_rerank':
                     control('rerank.model_name', 'Reranker', level=1, options=['bge-reranker-base', 'Cohere Rerank v3'])
                     control('rerank.top_n', 'Rerank Top-N', min_value=1, max_value=2000)
+                    control('rerank.candidate_limit', 'Candidates to score (0 = unlimited)', min_value=0, max_value=2000)
                 with st.expander('Advanced input parameters'):
                     for section in ['vector_search', 'hybrid_fusion', 'ingestion_pipeline', 'generation']:
                         mapping = deepcopy(st.session_state.tree_config[section])
@@ -525,4 +526,3 @@ if completed_paths:
 
 
 job_progress()
-
