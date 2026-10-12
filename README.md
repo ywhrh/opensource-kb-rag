@@ -18,6 +18,11 @@ without this field. `rerank.top_n` controls how many scored results are retained
 `generation.context_top_k` controls how many passages are used for answering.
 The candidate limit affects retrieval quality and latency, not the index, so
 changing it does not require reindexing.
+
+`core.warmup.warmup(config)` performs a small local embedding and reranking
+inference once per model configuration per process. Hosted embedding and reranking
+providers are skipped, and no answer model is called. Applications can trigger it
+in the background before a visitor submits their first question.
 - **Measured quality and performance.** Compare configurations on a 60-question reference set spanning semantic, keyword, and distractor questions using four RAGAS metrics. Run independent Locust benchmarks with per-stage diagnostics; optionally enable Apple MPS query embedding, bounded dynamic batching, and LRU/TTL query caching.
 - **Reproducible experiments.** Branch configurations in the tuning UI, retain config/dataset/index snapshots, and resume interrupted evaluations from saved answers and metric checkpoints.
 
